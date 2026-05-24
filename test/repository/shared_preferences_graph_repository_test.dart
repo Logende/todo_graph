@@ -70,7 +70,32 @@ void main() {
       expect(raw, isNotNull);
       expect(raw, contains('\n'), reason: 'pretty-printed for debuggability');
       final decoded = json.decode(raw!) as Map<String, dynamic>;
-      expect(decoded['schemaVersion'], equals(1));
+      expect(decoded['schemaVersion'], equals(kCurrentSchemaVersion));
+    });
+
+    test('load migrates a version-1 document before parsing', () async {
+      await prefs.setString(
+        SharedPreferencesGraphRepository.storageKey,
+        '''
+{
+  "schemaVersion": 1,
+  "nodes": [
+    {
+      "id": "root",
+      "title": "All goals achieved",
+      "status": {"activation": {"kind": "always_active"}},
+      "createdAt": "2026-05-24T00:00:00.000Z"
+    }
+  ],
+  "edges": []
+}
+''',
+      );
+
+      final loaded = await repository.load();
+
+      expect(loaded, isNotNull);
+      expect(loaded!.schemaVersion, kCurrentSchemaVersion);
     });
   });
 }

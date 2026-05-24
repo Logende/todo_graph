@@ -7,6 +7,7 @@ import 'package:lakshya/app/graph_controller.dart';
 import 'package:lakshya/model/lakshya_graph.dart';
 import 'package:lakshya/model/node.dart';
 import 'package:lakshya/model/node_status.dart';
+import 'package:lakshya/model/settings.dart';
 import 'package:lakshya/service/graph_io.dart';
 import 'package:lakshya/service/id_generator.dart';
 import 'package:lakshya/service/schema_validator.dart';
@@ -58,7 +59,10 @@ void main() {
     await tester.pump();
 
     expect(clipboardText, isNotNull);
-    expect(clipboardText, contains('"schemaVersion": 1'));
+    expect(
+      clipboardText,
+      contains('"schemaVersion": $kCurrentSchemaVersion'),
+    );
     // The exported text must round-trip back through Import.
     final imported =
         GraphIo(validator: validator).importFromJson(clipboardText!);
@@ -113,5 +117,38 @@ void main() {
 
     expect(find.text('Export to JSON file'), findsOneWidget);
     expect(find.text('Import from JSON file'), findsOneWidget);
+  });
+
+  testWidgets('notification defaults update document settings', (tester) async {
+    final controller = GraphController(
+      initial: const LakshyaGraph(
+        nodes: [],
+        edges: [],
+        settings: Settings(
+          defaultDeadlineLeadTimeHours: 23,
+          notifyOnPeriodicReopenByDefault: false,
+        ),
+      ),
+      save: (_) async {},
+      idGenerator: SequentialIdGenerator(),
+      clock: () => DateTime.utc(2026, 5, 24),
+    );
+
+    await tester.pumpWidget(MaterialApp(
+      home: SettingsView(controller: controller, validator: validator),
+    ));
+
+    await tester.tap(find.text('Do not notify'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Always notify').last);
+    await tester.pumpAndSettle();
+
+    expect(
+      controller.graph.settings,
+      const Settings(
+        defaultDeadlineLeadTimeHours: 23,
+        notifyOnPeriodicReopenByDefault: true,
+      ),
+    );
   });
 }

@@ -25,7 +25,7 @@ void main() {
       const graph = LakshyaGraph.empty();
       final out = io.exportToJson(graph);
       expect(out, contains('\n'));
-      expect(out, contains('"schemaVersion": 1'));
+      expect(out, contains('"schemaVersion": $kCurrentSchemaVersion'));
     });
 
     test('round trips through importFromJson', () {
@@ -120,6 +120,25 @@ void main() {
       );
       final restored = io.importFromJson(io.exportToJson(graph));
       expect(restored, equals(graph));
+    });
+
+    test('migrates a version-1 document before validation/parsing', () {
+      const legacy = '''
+{
+  "schemaVersion": 1,
+  "nodes": [
+    {
+      "id": "11111111-1111-1111-1111-111111111111",
+      "title": "Health",
+      "status": {"activation": {"kind": "always_active"}},
+      "createdAt": "2026-05-24T00:00:00.000Z"
+    }
+  ],
+  "edges": []
+}
+''';
+      final restored = io.importFromJson(legacy);
+      expect(restored.schemaVersion, kCurrentSchemaVersion);
     });
   });
 }

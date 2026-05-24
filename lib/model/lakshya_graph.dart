@@ -9,7 +9,7 @@ import 'settings.dart';
 /// Current on-disk schema version. Pre-release: no legacy support is
 /// maintained — bumping this is fine, files written by older versions of
 /// the app are intentionally not migrated.
-const int kCurrentSchemaVersion = 1;
+const int kCurrentSchemaVersion = 2;
 
 /// Root document for the Lakshya graph. The full graph (every node, every
 /// structural edge, every importance/alternative relationship, every

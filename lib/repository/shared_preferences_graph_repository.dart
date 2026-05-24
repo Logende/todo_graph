@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../model/lakshya_graph.dart';
+import '../service/graph_document_migrator.dart';
 import '../service/schema_validator.dart';
 import 'graph_repository.dart';
 
@@ -18,6 +19,7 @@ class SharedPreferencesGraphRepository implements GraphRepository {
   SharedPreferencesGraphRepository({
     required this.preferences,
     this.validator,
+    this.migrator = const GraphDocumentMigrator(),
   });
 
   /// Storage key for the serialised graph document.
@@ -25,6 +27,7 @@ class SharedPreferencesGraphRepository implements GraphRepository {
 
   final SharedPreferences preferences;
   final SchemaValidator? validator;
+  final GraphDocumentMigrator migrator;
 
   static const _encoder = JsonEncoder.withIndent('  ');
 
@@ -33,8 +36,9 @@ class SharedPreferencesGraphRepository implements GraphRepository {
     final raw = preferences.getString(storageKey);
     if (raw == null || raw.trim().isEmpty) return null;
     final decoded = json.decode(raw) as Map<String, dynamic>;
-    validator?.validateOrThrow(decoded);
-    return LakshyaGraph.fromJson(decoded);
+    final migrated = migrator.migrate(decoded);
+    validator?.validateOrThrow(migrated);
+    return LakshyaGraph.fromJson(migrated);
   }
 
   @override

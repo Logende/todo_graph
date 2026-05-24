@@ -112,6 +112,42 @@ void main() {
           throwsA(isA<ArgumentError>()));
     });
 
+    test('reparentEdge moves an existing edge to a new parent', () {
+      final start = LakshyaGraph(
+        nodes: [buildNode('root'), buildNode('a'), buildNode('b')],
+        edges: [buildEdge('e1', from: 'b', to: 'root')],
+      );
+
+      final next = mutator.reparentEdge(
+        start,
+        edgeId: 'e1',
+        newParentId: 'a',
+      );
+
+      expect(next.edges.single.id, 'e1');
+      expect(next.edges.single.childId, 'b');
+      expect(next.edges.single.parentId, 'a');
+    });
+
+    test('reparentEdge rejects cycles', () {
+      final start = LakshyaGraph(
+        nodes: [buildNode('root'), buildNode('a'), buildNode('b')],
+        edges: [
+          buildEdge('e1', from: 'a', to: 'root'),
+          buildEdge('e2', from: 'b', to: 'a'),
+        ],
+      );
+
+      expect(
+        () => mutator.reparentEdge(
+          start,
+          edgeId: 'e1',
+          newParentId: 'b',
+        ),
+        throwsA(isA<StateError>()),
+      );
+    });
+
     test('addRelationship requires both endpoints to exist', () {
       final start = LakshyaGraph(
         nodes: [buildNode('a'), buildNode('b')],

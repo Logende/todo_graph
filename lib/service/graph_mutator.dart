@@ -64,6 +64,48 @@ class GraphMutator {
     );
   }
 
+  LakshyaGraph reparentEdge(
+    LakshyaGraph graph, {
+    required String edgeId,
+    required String newParentId,
+  }) {
+    final index = graph.edges.indexWhere((e) => e.id == edgeId);
+    _requirePresent(index, edgeId, label: 'edgeId');
+    final edge = graph.edges[index];
+    final nodeIds = graph.nodes.map((n) => n.id).toSet();
+    _requireKnownNode(nodeIds, newParentId, label: 'newParentId');
+    if (edge.parentId == newParentId) return graph;
+    if (GraphTraversal(graph).wouldFormCycle(
+      childId: edge.childId,
+      parentId: newParentId,
+    )) {
+      throw StateError(
+        'reparenting ${edge.childId} under $newParentId would form a cycle',
+      );
+    }
+
+    final existingIndex = graph.edges.indexWhere(
+      (e) =>
+          e.id != edgeId &&
+          e.childId == edge.childId &&
+          e.parentId == newParentId,
+    );
+    if (existingIndex >= 0) {
+      return graph.copyWith(
+        edges: graph.edges.where((e) => e.id != edgeId).toList(),
+      );
+    }
+
+    final nextEdges = [...graph.edges];
+    nextEdges[index] = Edge(
+      id: edge.id,
+      childId: edge.childId,
+      parentId: newParentId,
+      contribution: edge.contribution,
+    );
+    return graph.copyWith(edges: nextEdges);
+  }
+
   LakshyaGraph addRelationship(
     LakshyaGraph graph,
     NodeRelationship relationship,

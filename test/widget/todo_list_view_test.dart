@@ -303,6 +303,57 @@ void main() {
     expect(find.byTooltip('Expand child tasks'), findsNothing);
   });
 
+  testWidgets('tree rows can move a task under another parent',
+      (tester) async {
+    final graph = LakshyaGraph(
+      nodes: [
+        buildNode('root', title: 'All goals achieved'),
+        buildNode('cooperations', title: 'Cooperations'),
+        buildNode('department', title: 'XY Department'),
+        buildNode('talk', title: 'Talk with Peter', status: NodeStatus.oneTime()),
+      ],
+      edges: [
+        buildEdge('e1', from: 'cooperations', to: 'root'),
+        buildEdge('e2', from: 'department', to: 'cooperations'),
+        buildEdge('e3', from: 'talk', to: 'cooperations'),
+      ],
+    );
+    final controller = GraphController(
+      initial: graph,
+      save: (_) async {},
+      idGenerator: SequentialIdGenerator(),
+      clock: () => DateTime.utc(2026, 5, 24, 12),
+    );
+
+    await tester.pumpWidget(MaterialApp(
+      home: TodoListView(
+        controller: controller,
+        title: 'Test',
+        filter: const Filter(),
+      ),
+    ));
+
+    final talkRow = find.ancestor(
+      of: find.text('Talk with Peter'),
+      matching: find.byType(ListTile),
+    );
+    await tester.tap(find.descendant(
+      of: talkRow,
+      matching: find.byTooltip('Move to another parent'),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Move "Talk with Peter" under…'), findsOneWidget);
+    final dialog = find.byType(AlertDialog);
+    await tester.tap(
+      find.descendant(of: dialog, matching: find.text('XY Department')),
+    );
+    await tester.pumpAndSettle();
+
+    final moved = controller.graph.edges.firstWhere((e) => e.id == 'e3');
+    expect(moved.parentId, 'department');
+  });
+
   testWidgets('future-bounded task shows a schedule icon instead of a checked checkbox',
       (tester) async {
     final graph = LakshyaGraph(

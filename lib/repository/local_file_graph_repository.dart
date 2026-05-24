@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../model/lakshya_graph.dart';
+import '../service/graph_document_migrator.dart';
 import '../service/schema_validator.dart';
 import 'graph_repository.dart';
 
@@ -14,21 +15,25 @@ class LocalFileGraphRepository implements GraphRepository {
   LocalFileGraphRepository({
     required this.file,
     this.validator,
+    this.migrator = const GraphDocumentMigrator(),
   });
 
   final File file;
   final SchemaValidator? validator;
+  final GraphDocumentMigrator migrator;
+  File get backupFile => File('${file.path}.backup');
 
   static const _encoder = JsonEncoder.withIndent('  ');
 
   @override
   Future<LakshyaGraph?> load() async {
     if (!await file.exists()) return null;
-    final raw = await file.readAsString();
-    if (raw.trim().isEmpty) return null;
-    final decoded = json.decode(raw) as Map<String, dynamic>;
-    validator?.validateOrThrow(decoded);
-    return LakshyaGraph.fromJson(decoded);
+    return _decodeFile(file);
+  }
+
+  Future<LakshyaGraph?> loadBackup() async {
+    if (!await backupFile.exists()) return null;
+    return _decodeFile(backupFile);
   }
 
   @override
@@ -45,6 +50,12 @@ class LocalFileGraphRepository implements GraphRepository {
         flush: true,
       );
       await temp.rename(file.path);
+      try {
+        await file.copy(backupFile.path);
+      } catch (_) {
+        // The primary save already succeeded. Keep the backup best-effort so
+        // a sidecar copy failure does not surface as "save failed".
+      }
     } catch (_) {
       // Best-effort cleanup of the half-written temp; rethrow so the caller
       // can surface a useful error.
@@ -55,5 +66,14 @@ class LocalFileGraphRepository implements GraphRepository {
       }
       rethrow;
     }
+  }
+
+  Future<LakshyaGraph?> _decodeFile(File source) async {
+    final raw = await source.readAsString();
+    if (raw.trim().isEmpty) return null;
+    final decoded = json.decode(raw) as Map<String, dynamic>;
+    final migrated = migrator.migrate(decoded);
+    validator?.validateOrThrow(migrated);
+    return LakshyaGraph.fromJson(migrated);
   }
 }

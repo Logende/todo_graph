@@ -59,5 +59,41 @@ void main() {
       expect(await File('${tempDir.path}/nested/folder/graph.json').exists(),
           isTrue);
     });
+
+    test('save also refreshes the sidecar backup copy', () async {
+      final graph = LakshyaGraph(
+        nodes: [buildNode('root')],
+        edges: const [],
+      );
+
+      await repository.save(graph);
+
+      expect(await repository.backupFile.exists(), isTrue);
+      final backup = await repository.loadBackup();
+      expect(backup, equals(graph));
+    });
+
+    test('load migrates a version-1 document before parsing', () async {
+      final path = '${tempDir.path}/graph.json';
+      await File(path).writeAsString('''
+{
+  "schemaVersion": 1,
+  "nodes": [
+    {
+      "id": "root",
+      "title": "All goals achieved",
+      "status": {"activation": {"kind": "always_active"}},
+      "createdAt": "2026-05-24T00:00:00.000Z"
+    }
+  ],
+  "edges": []
+}
+''');
+
+      final loaded = await repository.load();
+
+      expect(loaded, isNotNull);
+      expect(loaded!.schemaVersion, kCurrentSchemaVersion);
+    });
   });
 }

@@ -195,6 +195,31 @@ class GraphController extends ChangeNotifier {
     _updateAndPersist(mutator.removeEdge(_graph, edgeId));
   }
 
+  /// Moves the child edge from [fromParentId] to [toParentId], preserving the
+  /// edge id and contribution. If the target parent already has the same
+  /// child linked, the old edge is removed so the move still results in a
+  /// single parent link there.
+  void moveNodeToParent({
+    required String childId,
+    required String fromParentId,
+    required String toParentId,
+  }) {
+    final edge = _graph.edges
+        .where((e) => e.childId == childId && e.parentId == fromParentId)
+        .firstOrNull;
+    if (edge == null) {
+      throw ArgumentError(
+        'No edge exists from childId=$childId to parentId=$fromParentId',
+      );
+    }
+    final next = mutator.reparentEdge(
+      _graph,
+      edgeId: edge.id,
+      newParentId: toParentId,
+    );
+    if (next != _graph) _updateAndPersist(next);
+  }
+
   /// Records an importance or alternative relationship between two nodes.
   /// See [RelationshipKind] for semantics.
   void addRelationship({

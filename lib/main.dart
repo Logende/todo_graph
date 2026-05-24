@@ -103,8 +103,21 @@ Future<_BootstrapResult> _loadOrBootstrapGraph({
     if (loaded != null) return _BootstrapResult(graph: loaded);
   } on SchemaValidationException catch (e) {
     // Don't overwrite the broken file — back it up to the side first so the
-    // user can hand-recover, then load the example seed for the session.
+    // user can hand-recover. If a desktop sidecar backup of the last good
+    // save exists, prefer that; otherwise load the example seed.
     final backupPath = await _backupCorruptedRepository(repository);
+    final recovered = await _tryLoadLastGoodBackup(repository);
+    if (recovered != null) {
+      return _BootstrapResult(
+        graph: recovered,
+        recoveryNotice: backupPath != null
+            ? 'Your saved graph failed validation. The broken live file was '
+                'preserved at $backupPath and the last known good backup was '
+                'loaded instead.\n\nDetails: ${e.errors.take(2).join("; ")}'
+            : 'Your saved graph failed validation, so the last known good '
+                'backup was loaded instead.',
+      );
+    }
     final seed = await _loadSeedFromAsset(validator: validator);
     return _BootstrapResult(
       graph: seed,
@@ -120,6 +133,15 @@ Future<_BootstrapResult> _loadOrBootstrapGraph({
   final seed = await _loadSeedFromAsset(validator: validator);
   await repository.save(seed);
   return _BootstrapResult(graph: seed);
+}
+
+Future<LakshyaGraph?> _tryLoadLastGoodBackup(GraphRepository repository) async {
+  if (repository is! LocalFileGraphRepository) return null;
+  try {
+    return await repository.loadBackup();
+  } catch (_) {
+    return null;
+  }
 }
 
 Future<String?> _backupCorruptedRepository(GraphRepository repository) async {

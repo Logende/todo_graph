@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lakshya/app/graph_controller.dart';
+import 'package:lakshya/model/attachment.dart';
 import 'package:lakshya/model/lakshya_graph.dart';
 import 'package:lakshya/model/node_notification_settings.dart';
 import 'package:lakshya/model/node_relationship.dart';
 import 'package:lakshya/model/node_status.dart';
+import 'package:lakshya/service/external_url_opener.dart';
 import 'package:lakshya/service/id_generator.dart';
 import 'package:lakshya/view/node_detail_view.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../support/builders.dart';
 
@@ -21,9 +25,14 @@ Future<void> _pumpDetailFor(
   WidgetTester tester,
   GraphController controller,
   String nodeId,
+  {ExternalUrlOpener urlOpener = const ExternalUrlOpener()}
 ) async {
   await tester.pumpWidget(MaterialApp(
-    home: NodeDetailView(controller: controller, nodeId: nodeId),
+    home: NodeDetailView(
+      controller: controller,
+      nodeId: nodeId,
+      urlOpener: urlOpener,
+    ),
   ));
 }
 
@@ -218,5 +227,108 @@ void main() {
 
     final updated = controller.graph.nodes.firstWhere((n) => n.id == 'task');
     expect(updated.notificationOverride, isNull);
+  });
+
+  testWidgets('can add a reminder-time attachment from the detail view',
+      (tester) async {
+    final graph = LakshyaGraph(
+      nodes: [
+        buildNode('root'),
+        buildNode('task', title: 'Write abstract', status: NodeStatus.oneTime()),
+      ],
+      edges: [buildEdge('e1', from: 'task', to: 'root')],
+    );
+    final controller = _controllerWith(graph);
+
+    await _pumpDetailFor(tester, controller, 'task');
+
+    await tester.tap(find.byTooltip('Add attachment'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add reminder time'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.widgetWithText(TextField, 'Label (optional)'), 'Follow up');
+    await tester.tap(find.widgetWithText(FilledButton, 'Attach'));
+    await tester.pumpAndSettle();
+
+    final updated = controller.graph.nodes.firstWhere((n) => n.id == 'task');
+    expect(updated.attachments.single, isA<TimeTriggerAttachment>());
+    expect(
+      (updated.attachments.single as TimeTriggerAttachment).label,
+      'Follow up',
+    );
+  });
+
+  testWidgets('URL attachments can be copied from the detail view',
+      (tester) async {
+    final graph = LakshyaGraph(
+      nodes: [
+        buildNode('root'),
+        buildNode(
+          'task',
+          title: 'Write abstract',
+          status: NodeStatus.oneTime(),
+        ).copyWith(
+          attachments: const [
+            UrlAttachment(url: 'https://example.com', label: 'Reference'),
+          ],
+        ),
+      ],
+      edges: [buildEdge('e1', from: 'task', to: 'root')],
+    );
+    final controller = _controllerWith(graph);
+
+    String? clipboardText;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') {
+        clipboardText = (call.arguments as Map)['text'] as String?;
+      }
+      return null;
+    });
+
+    await _pumpDetailFor(tester, controller, 'task');
+
+    await tester.tap(find.byTooltip('Copy URL'));
+    await tester.pumpAndSettle();
+
+    expect(clipboardText, 'https://example.com');
+  });
+
+  testWidgets('URL open failures are shown as a dialog', (tester) async {
+    final graph = LakshyaGraph(
+      nodes: [
+        buildNode('root'),
+        buildNode(
+          'task',
+          title: 'Write abstract',
+          status: NodeStatus.oneTime(),
+        ).copyWith(
+          attachments: const [
+            UrlAttachment(url: 'https://example.com', label: 'Reference'),
+          ],
+        ),
+      ],
+      edges: [buildEdge('e1', from: 'task', to: 'root')],
+    );
+    final controller = _controllerWith(graph);
+
+    await _pumpDetailFor(
+      tester,
+      controller,
+      'task',
+      urlOpener: ExternalUrlOpener(
+        launch: (_, {mode = LaunchMode.platformDefault, webViewConfiguration = const WebViewConfiguration(), browserConfiguration = const BrowserConfiguration(), webOnlyWindowName}) async => false,
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Open URL'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Could not open URL'), findsOneWidget);
+    expect(
+      find.textContaining('No application is registered to open this URL'),
+      findsOneWidget,
+    );
   });
 }

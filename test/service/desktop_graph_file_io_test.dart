@@ -39,7 +39,7 @@ void main() {
     await io.exportToFile(graph: graph, path: path);
 
     final exported = File(path).readAsStringSync();
-    expect(exported, contains('"schemaVersion": 1'));
+    expect(exported, contains('"schemaVersion": $kCurrentSchemaVersion'));
     expect(GraphIo(validator: validator).importFromJson(exported), equals(graph));
   });
 

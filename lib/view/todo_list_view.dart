@@ -10,6 +10,7 @@ import '../model/node.dart';
 import '../model/node_status.dart';
 import '../model/settings.dart';
 import '../service/filter_evaluator.dart';
+import '../service/graph_traversal.dart';
 import '../service/hierarchical_ordering.dart';
 import '../service/node_queries.dart';
 import '../widgets/node_picker.dart';
@@ -160,10 +161,13 @@ class _TodoListViewState extends State<TodoListView> {
                 depth: row.depth,
                 now: now,
                 queries: queries,
+                currentParentId: _parentIdFromPath(row.pathId),
                 isTreeMode: isTreeMode,
                 isCollapsed: collapsedNodeIds.contains(row.node.id),
                 isExpandable: expandablePathIds.contains(row.pathId),
                 onToggleCollapsed: () => _toggleCollapsed(row.node.id),
+                onMoveToParent: (currentParentId) =>
+                    _moveNodeToParent(row.node, currentParentId),
                 onSetCompleted: (isCompleted) =>
                     widget.controller.setCompleted(
                   row.node.id,
@@ -193,6 +197,31 @@ class _TodoListViewState extends State<TodoListView> {
       current.remove(nodeId);
     }
     widget.controller.setCollapsedNodeIds(current.toList()..sort());
+  }
+
+  Future<void> _moveNodeToParent(Node node, String? currentParentId) async {
+    if (currentParentId == null) return;
+    final traversal = GraphTraversal(widget.controller.graph);
+    final excluded = <String>{
+      node.id,
+      ...traversal.descendantsOf(node.id),
+    };
+    final target = await showNodePicker(
+      context: context,
+      nodes: widget.controller.graph.nodes,
+      excludeIds: excluded,
+      title: 'Move "${node.title}" under…',
+    );
+    if (target == null) return;
+    widget.controller.moveNodeToParent(
+      childId: node.id,
+      fromParentId: currentParentId,
+      toParentId: target.id,
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Moved "${node.title}" under "${target.title}"')),
+    );
   }
 
   /// Translates a drag in the visible list into one or more
@@ -653,10 +682,12 @@ class _NodeTile extends StatelessWidget {
     required this.depth,
     required this.now,
     required this.queries,
+    required this.currentParentId,
     required this.isTreeMode,
     required this.isCollapsed,
     required this.isExpandable,
     required this.onToggleCollapsed,
+    required this.onMoveToParent,
     required this.onSetCompleted,
     required this.onOpenDetail,
     required this.onQuickAddChild,
@@ -667,10 +698,12 @@ class _NodeTile extends StatelessWidget {
   final int depth;
   final DateTime now;
   final NodeQueries queries;
+  final String? currentParentId;
   final bool isTreeMode;
   final bool isCollapsed;
   final bool isExpandable;
   final VoidCallback onToggleCollapsed;
+  final ValueChanged<String?> onMoveToParent;
   final ValueChanged<bool> onSetCompleted;
   final VoidCallback onOpenDetail;
   final VoidCallback onQuickAddChild;
@@ -730,6 +763,13 @@ class _NodeTile extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             _statusBadge(node.status),
+            if (isTreeMode && currentParentId != null)
+              IconButton(
+                tooltip: 'Move to another parent',
+                icon: const Icon(Icons.drive_file_move_outline),
+                visualDensity: VisualDensity.compact,
+                onPressed: () => onMoveToParent(currentParentId),
+              ),
             IconButton(
               tooltip: 'Add child',
               icon: const Icon(Icons.add),
@@ -867,3 +907,9 @@ Set<String> _expandablePathIds(List<HierarchicalRow> rows) {
 
 bool _isDescendantPath(String path, String ancestorPath) =>
     path.startsWith('$ancestorPath>');
+
+String? _parentIdFromPath(String pathId) {
+  final parts = pathId.split('>');
+  if (parts.length < 2) return null;
+  return parts[parts.length - 2];
+}

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../model/lakshya_graph.dart';
+import 'graph_document_migrator.dart';
 import 'schema_validator.dart';
 
 /// Backs the "Export to JSON" and "Import from JSON" UI actions.
@@ -10,9 +11,13 @@ import 'schema_validator.dart';
 /// [LakshyaGraph.fromJson] — invalid documents are rejected with a clear
 /// [SchemaValidationException] instead of a deep parse stack trace.
 class GraphIo {
-  GraphIo({required this.validator});
+  GraphIo({
+    required this.validator,
+    this.migrator = const GraphDocumentMigrator(),
+  });
 
   final SchemaValidator validator;
+  final GraphDocumentMigrator migrator;
 
   static const _encoder = JsonEncoder.withIndent('  ');
 
@@ -40,7 +45,8 @@ class GraphIo {
         'Imported JSON must have an object at the root',
       );
     }
-    validator.validateOrThrow(decoded);
-    return LakshyaGraph.fromJson(decoded);
+    final migrated = migrator.migrate(decoded);
+    validator.validateOrThrow(migrated);
+    return LakshyaGraph.fromJson(migrated);
   }
 }

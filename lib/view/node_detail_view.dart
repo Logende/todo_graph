@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../app/graph_controller.dart';
 import '../model/activation_window.dart';
@@ -12,6 +11,7 @@ import '../model/node.dart';
 import '../model/node_notification_settings.dart';
 import '../model/node_relationship.dart';
 import '../model/node_status.dart';
+import '../service/external_url_opener.dart';
 import '../service/node_queries.dart';
 import '../widgets/node_picker.dart';
 
@@ -26,10 +26,12 @@ class NodeDetailView extends StatelessWidget {
     super.key,
     required this.controller,
     required this.nodeId,
+    this.urlOpener = const ExternalUrlOpener(),
   });
 
   final GraphController controller;
   final String nodeId;
+  final ExternalUrlOpener urlOpener;
 
   @override
   Widget build(BuildContext context) {
@@ -50,6 +52,7 @@ class NodeDetailView extends StatelessWidget {
           controller: controller,
           node: node,
           queries: NodeQueries(controller.graph),
+          urlOpener: urlOpener,
         );
       },
     );
@@ -61,11 +64,13 @@ class _DetailScaffold extends StatelessWidget {
     required this.controller,
     required this.node,
     required this.queries,
+    required this.urlOpener,
   });
 
   final GraphController controller;
   final Node node;
   final NodeQueries queries;
+  final ExternalUrlOpener urlOpener;
 
   @override
   Widget build(BuildContext context) {
@@ -102,10 +107,34 @@ class _DetailScaffold extends StatelessWidget {
           const SizedBox(height: 24),
           _SectionHeader(
             title: 'Attachments (${node.attachments.length})',
-            trailing: TextButton.icon(
-              icon: const Icon(Icons.link),
-              label: const Text('Add URL'),
-              onPressed: () => _startAddUrlAttachment(context),
+            trailing: PopupMenuButton<_AttachmentAction>(
+              tooltip: 'Add attachment',
+              onSelected: (action) => switch (action) {
+                _AttachmentAction.url => _startAddUrlAttachment(context),
+                _AttachmentAction.timeTrigger =>
+                  _startAddTimeTriggerAttachment(context),
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem(
+                  value: _AttachmentAction.url,
+                  child: Text('Add URL'),
+                ),
+                PopupMenuItem(
+                  value: _AttachmentAction.timeTrigger,
+                  child: Text('Add reminder time'),
+                ),
+              ],
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.add_link),
+                    SizedBox(width: 6),
+                    Text('Add'),
+                  ],
+                ),
+              ),
             ),
           ),
           if (node.attachments.isEmpty)
@@ -121,6 +150,13 @@ class _DetailScaffold extends StatelessWidget {
             _UrlAttachmentTile(
               attachment: attachment,
               onOpen: () => _openUrl(context, attachment.url),
+              onCopy: () => _copyToClipboard(context, attachment.url),
+              onRemove: () => _removeAttachment(attachment),
+            ),
+          for (final attachment
+              in node.attachments.whereType<TimeTriggerAttachment>())
+            _TimeTriggerAttachmentTile(
+              attachment: attachment,
               onRemove: () => _removeAttachment(attachment),
             ),
           const SizedBox(height: 24),
@@ -164,13 +200,26 @@ class _DetailScaffold extends StatelessWidget {
   }
 
   Future<void> _startAddUrlAttachment(BuildContext context) async {
-    final url = await showDialog<String>(
+    final result = await showDialog<_UrlAttachmentDraft>(
       context: context,
       builder: (_) => const _UrlAttachmentDialog(),
     );
-    if (url == null || url.isEmpty) return;
+    if (result == null) return;
+    _addAttachment(UrlAttachment(url: result.url, label: result.label));
+  }
+
+  Future<void> _startAddTimeTriggerAttachment(BuildContext context) async {
+    final attachment = await showDialog<TimeTriggerAttachment>(
+      context: context,
+      builder: (_) => const _TimeTriggerAttachmentDialog(),
+    );
+    if (attachment == null) return;
+    _addAttachment(attachment);
+  }
+
+  void _addAttachment(Attachment attachment) {
     final updated = node.copyWith(
-      attachments: [...node.attachments, UrlAttachment(url: url)],
+      attachments: [...node.attachments, attachment],
       updatedAt: DateTime.now(),
     );
     controller.updateNode(updated);
@@ -185,37 +234,9 @@ class _DetailScaffold extends StatelessWidget {
   }
 
   Future<void> _openUrl(BuildContext context, String url) async {
-    final uri = Uri.tryParse(url);
-    if (uri == null) {
-      await _showUrlError(context, 'Not a valid URL: $url');
-      return;
-    }
-    try {
-      // externalApplication so custom schemes like obsidian:// reach the OS
-      // handler instead of trying to render in an in-app web view.
-      final launched = await launchUrl(
-        uri,
-        mode: LaunchMode.externalApplication,
-      );
-      if (!launched && context.mounted) {
-        await _showUrlError(
-          context,
-          'No application is registered to open this URL. For obsidian:// '
-          'links, make sure Obsidian is installed and the vault is mounted.',
-        );
-      }
-    } on MissingPluginException {
-      if (!context.mounted) return;
-      await _showUrlError(
-        context,
-        'URL opening is not available in this running app build yet. '
-        'Fully quit and relaunch the app after rebuilding so the desktop '
-        'plugin is registered.',
-      );
-    } catch (e) {
-      if (!context.mounted) return;
-      await _showUrlError(context, 'Could not open URL: $e');
-    }
+    final error = await urlOpener.open(url);
+    if (error == null || !context.mounted) return;
+    await _showUrlError(context, error);
   }
 
   Future<void> _showUrlError(BuildContext context, String body) {
@@ -231,6 +252,14 @@ class _DetailScaffold extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _copyToClipboard(BuildContext context, String text) async {
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Copied to clipboard')),
     );
   }
 
@@ -1041,11 +1070,13 @@ class _UrlAttachmentTile extends StatelessWidget {
   const _UrlAttachmentTile({
     required this.attachment,
     required this.onOpen,
+    required this.onCopy,
     required this.onRemove,
   });
 
   final UrlAttachment attachment;
   final VoidCallback onOpen;
+  final VoidCallback onCopy;
   final VoidCallback onRemove;
 
   bool get _isObsidian => attachment.url.startsWith('obsidian://');
@@ -1081,6 +1112,11 @@ class _UrlAttachmentTile extends StatelessWidget {
             onPressed: onOpen,
           ),
           IconButton(
+            tooltip: 'Copy URL',
+            icon: const Icon(Icons.copy_outlined),
+            onPressed: onCopy,
+          ),
+          IconButton(
             tooltip: 'Remove attachment',
             icon: const Icon(Icons.close),
             onPressed: onRemove,
@@ -1090,6 +1126,43 @@ class _UrlAttachmentTile extends StatelessWidget {
       onTap: onOpen,
     );
   }
+}
+
+class _TimeTriggerAttachmentTile extends StatelessWidget {
+  const _TimeTriggerAttachmentTile({
+    required this.attachment,
+    required this.onRemove,
+  });
+
+  final TimeTriggerAttachment attachment;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(
+        Icons.alarm_outlined,
+        color: Theme.of(context).colorScheme.primary,
+      ),
+      title: Text(attachment.label ?? 'Reminder'),
+      subtitle: Text('Triggers at ${_formatDateTime(attachment.triggerAt)}'),
+      trailing: IconButton(
+        tooltip: 'Remove attachment',
+        icon: const Icon(Icons.close),
+        onPressed: onRemove,
+      ),
+    );
+  }
+}
+
+enum _AttachmentAction { url, timeTrigger }
+
+class _UrlAttachmentDraft {
+  const _UrlAttachmentDraft({required this.url, this.label});
+
+  final String url;
+  final String? label;
 }
 
 /// Paste-in dialog for a URL attachment. Accepts any URI with a non-empty
@@ -1102,17 +1175,19 @@ class _UrlAttachmentDialog extends StatefulWidget {
 }
 
 class _UrlAttachmentDialogState extends State<_UrlAttachmentDialog> {
-  final _controller = TextEditingController();
+  final _urlController = TextEditingController();
+  final _labelController = TextEditingController();
   String? _error;
 
   @override
   void dispose() {
-    _controller.dispose();
+    _urlController.dispose();
+    _labelController.dispose();
     super.dispose();
   }
 
   void _submit() {
-    final raw = _controller.text.trim();
+    final raw = _urlController.text.trim();
     if (raw.isEmpty) {
       setState(() => _error = 'Paste a URL first');
       return;
@@ -1123,7 +1198,13 @@ class _UrlAttachmentDialogState extends State<_UrlAttachmentDialog> {
           'Not a valid URL — needs a scheme like https:// or obsidian://');
       return;
     }
-    Navigator.of(context).pop(raw);
+    final label = _labelController.text.trim();
+    Navigator.of(context).pop(
+      _UrlAttachmentDraft(
+        url: raw,
+        label: label.isEmpty ? null : label,
+      ),
+    );
   }
 
   @override
@@ -1137,7 +1218,7 @@ class _UrlAttachmentDialogState extends State<_UrlAttachmentDialog> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             TextField(
-              controller: _controller,
+              controller: _urlController,
               autofocus: true,
               decoration: InputDecoration(
                 labelText: 'URL',
@@ -1146,6 +1227,13 @@ class _UrlAttachmentDialogState extends State<_UrlAttachmentDialog> {
                 errorText: _error,
               ),
               onSubmitted: (_) => _submit(),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _labelController,
+              decoration: const InputDecoration(
+                labelText: 'Label (optional)',
+              ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -1167,6 +1255,121 @@ class _UrlAttachmentDialogState extends State<_UrlAttachmentDialog> {
   }
 }
 
+class _TimeTriggerAttachmentDialog extends StatefulWidget {
+  const _TimeTriggerAttachmentDialog();
+
+  @override
+  State<_TimeTriggerAttachmentDialog> createState() =>
+      _TimeTriggerAttachmentDialogState();
+}
+
+class _TimeTriggerAttachmentDialogState
+    extends State<_TimeTriggerAttachmentDialog> {
+  final _labelController = TextEditingController();
+  late DateTime _triggerAt = DateTime.now().add(const Duration(hours: 1));
+
+  @override
+  void dispose() {
+    _labelController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _triggerAt,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (picked == null) return;
+    setState(() {
+      _triggerAt = DateTime(
+        picked.year,
+        picked.month,
+        picked.day,
+        _triggerAt.hour,
+        _triggerAt.minute,
+      );
+    });
+  }
+
+  Future<void> _pickTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_triggerAt),
+    );
+    if (picked == null) return;
+    setState(() {
+      _triggerAt = DateTime(
+        _triggerAt.year,
+        _triggerAt.month,
+        _triggerAt.day,
+        picked.hour,
+        picked.minute,
+      );
+    });
+  }
+
+  void _submit() {
+    final label = _labelController.text.trim();
+    Navigator.of(context).pop(
+      TimeTriggerAttachment(
+        triggerAt: _triggerAt,
+        label: label.isEmpty ? null : label,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Add reminder time'),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: _labelController,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Label (optional)',
+                hintText: 'e.g. Ping Peter if not done',
+              ),
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.calendar_today_outlined),
+              title: Text('Date: ${_formatDate(_triggerAt)}'),
+              onTap: _pickDate,
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.schedule_outlined),
+              title: Text(
+                'Time: ${_triggerAt.hour.toString().padLeft(2, '0')}:${_triggerAt.minute.toString().padLeft(2, '0')}',
+              ),
+              onTap: _pickTime,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: const Text('Attach'),
+        ),
+      ],
+    );
+  }
+}
+
 String _impactLabel(Impact level) => switch (level) {
       Impact.minimal => 'Minimal',
       Impact.low => 'Low',
@@ -1179,3 +1382,8 @@ String _formatDate(DateTime dt) =>
     '${dt.year.toString().padLeft(4, '0')}-'
     '${dt.month.toString().padLeft(2, '0')}-'
     '${dt.day.toString().padLeft(2, '0')}';
+
+String _formatDateTime(DateTime dt) =>
+    '${_formatDate(dt)} '
+    '${dt.hour.toString().padLeft(2, '0')}:'
+    '${dt.minute.toString().padLeft(2, '0')}';

@@ -8,6 +8,8 @@ import 'package:lakshya/model/node_status.dart';
 import 'package:lakshya/model/settings.dart';
 import 'package:lakshya/service/id_generator.dart';
 
+import '../support/builders.dart';
+
 void main() {
   group('GraphController', () {
     test('exposes the initial graph', () {
@@ -416,6 +418,59 @@ void main() {
         controller.graph.settings,
         const Settings(collapsedNodeIds: ['root']),
       );
+    });
+
+    test('moveNodeToParent reparents an existing edge', () async {
+      final initial = LakshyaGraph(
+        nodes: [
+          Node(
+            id: 'root',
+            title: 'Root',
+            status: NodeStatus.alwaysOnBackground,
+            createdAt: DateTime.utc(2026, 5, 24),
+          ),
+          Node(
+            id: 'cooperations',
+            title: 'Cooperations',
+            status: NodeStatus.alwaysOnBackground,
+            createdAt: DateTime.utc(2026, 5, 24),
+          ),
+          Node(
+            id: 'department',
+            title: 'XY Department',
+            status: NodeStatus.alwaysOnBackground,
+            createdAt: DateTime.utc(2026, 5, 24),
+          ),
+          Node(
+            id: 'talk',
+            title: 'Talk with Peter',
+            status: NodeStatus.oneTime(),
+            createdAt: DateTime.utc(2026, 5, 24),
+          ),
+        ],
+        edges: const [],
+      );
+      final controller = GraphController(
+        initial: initial.copyWith(
+          edges: [
+            buildEdge('e1', from: 'cooperations', to: 'root'),
+            buildEdge('e2', from: 'department', to: 'cooperations'),
+            buildEdge('e3', from: 'talk', to: 'cooperations'),
+          ],
+        ),
+        save: (_) async {},
+        idGenerator: SequentialIdGenerator(),
+        clock: () => DateTime.utc(2026, 5, 24),
+      );
+
+      controller.moveNodeToParent(
+        childId: 'talk',
+        fromParentId: 'cooperations',
+        toParentId: 'department',
+      );
+
+      final moved = controller.graph.edges.firstWhere((e) => e.id == 'e3');
+      expect(moved.parentId, 'department');
     });
   });
 }

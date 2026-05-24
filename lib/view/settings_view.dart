@@ -285,6 +285,14 @@ class _SettingsViewState extends State<SettingsView> {
                 value: settings.effectiveUrgentWindowDays,
                 onChanged: _setUrgentWindow,
               ),
+              _DeadlineLeadTimeTile(
+                value: settings.defaultDeadlineLeadTimeHours,
+                onChanged: _setDefaultDeadlineLeadTimeHours,
+              ),
+              _PeriodicReopenDefaultTile(
+                value: settings.notifyOnPeriodicReopenByDefault,
+                onChanged: _setNotifyOnPeriodicReopenByDefault,
+              ),
               ListTile(
                 leading: const Icon(Icons.dashboard_customize_outlined),
                 title: const Text('Manage saved tiles'),
@@ -368,6 +376,20 @@ class _SettingsViewState extends State<SettingsView> {
     final current = widget.controller.graph.settings ?? const Settings();
     final next = current.copyWith(urgentWindowDays: days);
     widget.controller.updateSettings(next);
+  }
+
+  void _setDefaultDeadlineLeadTimeHours(int? hours) {
+    final current = widget.controller.graph.settings ?? const Settings();
+    widget.controller.updateSettings(
+      current.copyWith(defaultDeadlineLeadTimeHours: hours),
+    );
+  }
+
+  void _setNotifyOnPeriodicReopenByDefault(bool? value) {
+    final current = widget.controller.graph.settings ?? const Settings();
+    widget.controller.updateSettings(
+      current.copyWith(notifyOnPeriodicReopenByDefault: value),
+    );
   }
 }
 
@@ -516,6 +538,95 @@ class _UrgentWindowTile extends StatelessWidget {
             icon: const Icon(Icons.add),
             visualDensity: VisualDensity.compact,
             onPressed: () => onChanged(value + 1),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DeadlineLeadTimeTile extends StatelessWidget {
+  const _DeadlineLeadTimeTile({
+    required this.value,
+    required this.onChanged,
+  });
+
+  final int? value;
+  final ValueChanged<int?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final effective = value ?? 24;
+    return ListTile(
+      leading: const Icon(Icons.notifications_active_outlined),
+      title: const Text('Default deadline reminder'),
+      subtitle: Text(
+        value == null
+            ? 'Using the default 24-hour lead time.'
+            : 'Remind $effective hour${effective == 1 ? '' : 's'} before each deadline unless a task overrides it.',
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: 'Use app default',
+            icon: const Icon(Icons.restart_alt),
+            visualDensity: VisualDensity.compact,
+            onPressed: value == null ? null : () => onChanged(null),
+          ),
+          IconButton(
+            icon: const Icon(Icons.remove),
+            visualDensity: VisualDensity.compact,
+            onPressed: effective > 0 ? () => onChanged(effective - 1) : null,
+          ),
+          Text('$effective', style: Theme.of(context).textTheme.titleMedium),
+          IconButton(
+            icon: const Icon(Icons.add),
+            visualDensity: VisualDensity.compact,
+            onPressed: () => onChanged(effective + 1),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PeriodicReopenDefaultTile extends StatelessWidget {
+  const _PeriodicReopenDefaultTile({
+    required this.value,
+    required this.onChanged,
+  });
+
+  final bool? value;
+  final ValueChanged<bool?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: const Icon(Icons.autorenew_outlined),
+      title: const Text('Periodic reopen notifications'),
+      subtitle: Text(
+        switch (value) {
+          true => 'Always notify when periodic tasks become open again.',
+          false => 'Do not notify when periodic tasks reopen unless a task overrides it.',
+          null => 'Using the app default behavior for periodic reopen notifications.',
+        },
+      ),
+      trailing: DropdownButton<bool?>(
+        value: value,
+        onChanged: onChanged,
+        items: const [
+          DropdownMenuItem<bool?>(
+            value: null,
+            child: Text('App default'),
+          ),
+          DropdownMenuItem<bool?>(
+            value: true,
+            child: Text('Always notify'),
+          ),
+          DropdownMenuItem<bool?>(
+            value: false,
+            child: Text('Do not notify'),
           ),
         ],
       ),
