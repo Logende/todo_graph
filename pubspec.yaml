@@ -58,7 +58,14 @@ dependencies:
   # Graph layout engine for the dashboard's Graph view (Sugiyama
   # buchheim-style layered layout works well for our DAG of goals).
   graphview: ^1.5.1
+
+  # Modern dart:js_interop type bindings for the File System Access API
+  # used by the optional web-only file-sync repository.
   web: ^1.1.1
+
+  # Launches external URLs — including custom schemes like obsidian:// for
+  # attachments that link a node to an Obsidian note.
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:

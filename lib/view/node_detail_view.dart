@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../app/graph_controller.dart';
 import '../model/activation_window.dart';
+import '../model/attachment.dart';
 import '../model/completion.dart';
 import '../model/edge.dart';
 import '../model/impact.dart';
@@ -96,6 +98,30 @@ class _DetailScaffold extends StatelessWidget {
           ],
           _StatusSummary(node: node, queries: queries),
           const SizedBox(height: 24),
+          _SectionHeader(
+            title: 'Attachments (${node.attachments.length})',
+            trailing: TextButton.icon(
+              icon: const Icon(Icons.link),
+              label: const Text('Add URL'),
+              onPressed: () => _startAddUrlAttachment(context),
+            ),
+          ),
+          if (node.attachments.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'No attachments. Paste an Obsidian URL '
+                '(obsidian://open?vault=…) or any other link.',
+                style: TextStyle(fontStyle: FontStyle.italic),
+              ),
+            ),
+          for (final attachment in node.attachments.whereType<UrlAttachment>())
+            _UrlAttachmentTile(
+              attachment: attachment,
+              onOpen: () => _openUrl(context, attachment.url),
+              onRemove: () => _removeAttachment(attachment),
+            ),
+          const SizedBox(height: 24),
           _SectionHeader(title: 'Parents (${parentEdges.length})'),
           ...parentEdges.map((e) => _ParentTile(
                 edge: e,
@@ -133,6 +159,69 @@ class _DetailScaffold extends StatelessWidget {
   String _titleForId(String id) {
     final match = controller.graph.nodes.where((n) => n.id == id).firstOrNull;
     return match?.title ?? '(missing node $id)';
+  }
+
+  Future<void> _startAddUrlAttachment(BuildContext context) async {
+    final url = await showDialog<String>(
+      context: context,
+      builder: (_) => const _UrlAttachmentDialog(),
+    );
+    if (url == null || url.isEmpty) return;
+    final updated = node.copyWith(
+      attachments: [...node.attachments, UrlAttachment(url: url)],
+      updatedAt: DateTime.now(),
+    );
+    controller.updateNode(updated);
+  }
+
+  void _removeAttachment(Attachment attachment) {
+    final next = [...node.attachments]..remove(attachment);
+    controller.updateNode(node.copyWith(
+      attachments: next,
+      updatedAt: DateTime.now(),
+    ));
+  }
+
+  Future<void> _openUrl(BuildContext context, String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) {
+      await _showUrlError(context, 'Not a valid URL: $url');
+      return;
+    }
+    try {
+      // externalApplication so custom schemes like obsidian:// reach the OS
+      // handler instead of trying to render in an in-app web view.
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched && context.mounted) {
+        await _showUrlError(
+          context,
+          'No application is registered to open this URL. For obsidian:// '
+          'links, make sure Obsidian is installed and the vault is mounted.',
+        );
+      }
+    } catch (e) {
+      if (!context.mounted) return;
+      await _showUrlError(context, 'Could not open URL: $e');
+    }
+  }
+
+  Future<void> _showUrlError(BuildContext context, String body) {
+    return showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Could not open URL'),
+        content: Text(body),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _openEditor(BuildContext context) async {
@@ -843,6 +932,139 @@ class _DateRow extends StatelessWidget {
         icon: const Icon(Icons.calendar_today_outlined),
         onPressed: onPick,
       ),
+    );
+  }
+}
+
+/// One row per [UrlAttachment]. Tap the title or the open icon to launch the
+/// URL through the OS — `obsidian://` schemes go to Obsidian when it's
+/// installed, https links to the default browser, etc.
+class _UrlAttachmentTile extends StatelessWidget {
+  const _UrlAttachmentTile({
+    required this.attachment,
+    required this.onOpen,
+    required this.onRemove,
+  });
+
+  final UrlAttachment attachment;
+  final VoidCallback onOpen;
+  final VoidCallback onRemove;
+
+  bool get _isObsidian => attachment.url.startsWith('obsidian://');
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(
+        _isObsidian ? Icons.book_outlined : Icons.link,
+        color: scheme.primary,
+      ),
+      title: Text(
+        attachment.label ?? attachment.url,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: attachment.label == null
+          ? null
+          : Text(
+              attachment.url,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: 'Open URL',
+            icon: const Icon(Icons.open_in_new),
+            onPressed: onOpen,
+          ),
+          IconButton(
+            tooltip: 'Remove attachment',
+            icon: const Icon(Icons.close),
+            onPressed: onRemove,
+          ),
+        ],
+      ),
+      onTap: onOpen,
+    );
+  }
+}
+
+/// Paste-in dialog for a URL attachment. Accepts any URI with a non-empty
+/// scheme so the user can use http(s), mailto, obsidian:// etc.
+class _UrlAttachmentDialog extends StatefulWidget {
+  const _UrlAttachmentDialog();
+
+  @override
+  State<_UrlAttachmentDialog> createState() => _UrlAttachmentDialogState();
+}
+
+class _UrlAttachmentDialogState extends State<_UrlAttachmentDialog> {
+  final _controller = TextEditingController();
+  String? _error;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final raw = _controller.text.trim();
+    if (raw.isEmpty) {
+      setState(() => _error = 'Paste a URL first');
+      return;
+    }
+    final uri = Uri.tryParse(raw);
+    if (uri == null || uri.scheme.isEmpty) {
+      setState(() => _error =
+          'Not a valid URL — needs a scheme like https:// or obsidian://');
+      return;
+    }
+    Navigator.of(context).pop(raw);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Attach a URL'),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              decoration: InputDecoration(
+                labelText: 'URL',
+                hintText:
+                    'obsidian://open?vault=…&file=…  or  https://example.com',
+                errorText: _error,
+              ),
+              onSubmitted: (_) => _submit(),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Obsidian URLs open the linked note in Obsidian when it is '
+              'installed locally and the vault is mounted.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(onPressed: _submit, child: const Text('Attach')),
+      ],
     );
   }
 }
