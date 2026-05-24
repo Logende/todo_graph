@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lakshya/app/graph_controller.dart';
 import 'package:lakshya/model/lakshya_graph.dart';
 import 'package:lakshya/model/node.dart';
+import 'package:lakshya/model/completion.dart';
 import 'package:lakshya/model/node_status.dart';
 import 'package:lakshya/service/id_generator.dart';
 import 'package:lakshya/view/add_node_view.dart';
@@ -16,13 +17,13 @@ void main() {
         Node(
           id: 'root',
           title: 'All goals achieved',
-          status: const AlwaysOnStatus(),
+          status: NodeStatus.alwaysOnBackground,
           createdAt: DateTime.utc(2026, 5, 24),
         ),
         Node(
           id: 'health',
           title: 'Health',
-          status: const AlwaysOnStatus(),
+          status: NodeStatus.alwaysOnBackground,
           createdAt: DateTime.utc(2026, 5, 24),
         ),
       ],
@@ -61,7 +62,7 @@ void main() {
     expect(controller.graph.nodes, hasLength(3));
     final added = controller.graph.nodes.last;
     expect(added.title, equals('Write paper'));
-    expect(added.status, isA<OneTimeStatus>());
+    expect(added.status.completion, isA<OneTimeCompletion>());
     expect(controller.graph.edges, hasLength(1));
     expect(controller.graph.edges.single.parentId, equals('root'));
     expect(controller.graph.edges.single.childId, equals(added.id));

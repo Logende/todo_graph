@@ -1,7 +1,6 @@
 import 'package:equatable/equatable.dart';
 
 import 'contribution.dart';
-import 'node_status.dart';
 
 /// Composable filter spec used by the graph view, the todo list view, and
 /// dashboard tiles.
@@ -11,7 +10,8 @@ class Filter extends Equatable {
   const Filter({
     this.ancestorGoalIds = const [],
     this.contribution = FilterContribution.any,
-    this.statusTypes = const [],
+    this.completionKinds = const [],
+    this.activationKinds = const [],
     this.onlyOngoing = false,
     this.onlyLeaves = false,
     this.freeText,
@@ -25,8 +25,14 @@ class Filter extends Equatable {
   /// descendants. [FilterContribution.any] keeps both mandatory and helpful.
   final FilterContribution contribution;
 
-  /// Keep only nodes whose status type is one of these. Empty means "any".
-  final List<StatusType> statusTypes;
+  /// Restrict to nodes whose completion aspect's `kind` is one of these.
+  /// The special value `"none"` matches background goals (no completion).
+  /// Empty list means "any completion kind".
+  final List<String> completionKinds;
+
+  /// Restrict to nodes whose activation window kind is one of these
+  /// (`"always_active"`, `"bounded"`). Empty list means "any activation".
+  final List<String> activationKinds;
 
   /// Keep only currently-actionable nodes.
   final bool onlyOngoing;
@@ -41,8 +47,8 @@ class Filter extends Equatable {
         if (ancestorGoalIds.isNotEmpty) 'ancestorGoalIds': ancestorGoalIds,
         if (contribution != FilterContribution.any)
           'contribution': contribution.toJsonValue(),
-        if (statusTypes.isNotEmpty)
-          'statusTypes': statusTypes.map((t) => t.jsonValue).toList(),
+        if (completionKinds.isNotEmpty) 'completionKinds': completionKinds,
+        if (activationKinds.isNotEmpty) 'activationKinds': activationKinds,
         if (onlyOngoing) 'onlyOngoing': onlyOngoing,
         if (onlyLeaves) 'onlyLeaves': onlyLeaves,
         if (freeText != null) 'freeText': freeText,
@@ -50,16 +56,16 @@ class Filter extends Equatable {
 
   factory Filter.fromJson(Map<String, dynamic> json) {
     final ancestors = (json['ancestorGoalIds'] as List?)?.cast<String>();
-    final statusRaw = (json['statusTypes'] as List?)?.cast<String>();
+    final completionRaw = (json['completionKinds'] as List?)?.cast<String>();
+    final activationRaw = (json['activationKinds'] as List?)?.cast<String>();
     final contribRaw = json['contribution'] as String?;
     return Filter(
       ancestorGoalIds: ancestors ?? const [],
       contribution: contribRaw == null
           ? FilterContribution.any
           : FilterContribution.fromJsonValue(contribRaw),
-      statusTypes: statusRaw == null
-          ? const []
-          : statusRaw.map(StatusType.fromJsonValue).toList(),
+      completionKinds: completionRaw ?? const [],
+      activationKinds: activationRaw ?? const [],
       onlyOngoing: (json['onlyOngoing'] as bool?) ?? false,
       onlyLeaves: (json['onlyLeaves'] as bool?) ?? false,
       freeText: json['freeText'] as String?,
@@ -70,7 +76,8 @@ class Filter extends Equatable {
   List<Object?> get props => [
         ancestorGoalIds,
         contribution,
-        statusTypes,
+        completionKinds,
+        activationKinds,
         onlyOngoing,
         onlyLeaves,
         freeText,

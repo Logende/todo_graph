@@ -30,13 +30,13 @@ void main() {
           Node(
             id: '11111111-1111-1111-1111-111111111111',
             title: 'Health',
-            status: const AlwaysOnStatus(),
+            status: NodeStatus.alwaysOnBackground,
             createdAt: DateTime.utc(2026, 5, 24),
           ),
           Node(
             id: '22222222-2222-2222-2222-222222222222',
             title: 'Push day',
-            status: PeriodicStatus(
+            status: NodeStatus.periodic(
               intervalDaysSinceLastCompletion: 3,
               lastCompletedAt: DateTime.utc(2026, 5, 22, 18),
             ),

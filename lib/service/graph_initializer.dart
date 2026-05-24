@@ -22,7 +22,7 @@ class GraphInitializer {
     final root = Node(
       id: idGenerator.next(),
       title: rootTitle,
-      status: const AlwaysOnStatus(),
+      status: NodeStatus.alwaysOnBackground,
       createdAt: now,
     );
     return LakshyaGraph(

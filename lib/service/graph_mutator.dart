@@ -15,40 +15,22 @@ class GraphMutator {
   const GraphMutator();
 
   LakshyaGraph addNode(LakshyaGraph graph, Node node) {
-    if (graph.nodes.any((n) => n.id == node.id)) {
-      throw ArgumentError.value(
-        node.id,
-        'node.id',
-        'a node with this id already exists',
-      );
-    }
-    return _copyWith(graph, nodes: [...graph.nodes, node]);
+    _requireUniqueId(graph.nodes.map((n) => n.id), node.id, label: 'node.id');
+    return graph.copyWith(nodes: [...graph.nodes, node]);
   }
 
   LakshyaGraph updateNode(LakshyaGraph graph, Node updated) {
     final index = graph.nodes.indexWhere((n) => n.id == updated.id);
-    if (index < 0) {
-      throw ArgumentError.value(
-        updated.id,
-        'node.id',
-        'no node with this id exists',
-      );
-    }
+    _requirePresent(index, updated.id, label: 'node.id');
     final next = [...graph.nodes];
     next[index] = updated;
-    return _copyWith(graph, nodes: next);
+    return graph.copyWith(nodes: next);
   }
 
   LakshyaGraph deleteNode(LakshyaGraph graph, String nodeId) {
-    if (!graph.nodes.any((n) => n.id == nodeId)) {
-      throw ArgumentError.value(
-        nodeId,
-        'nodeId',
-        'no node with this id exists',
-      );
-    }
-    return _copyWith(
-      graph,
+    final index = graph.nodes.indexWhere((n) => n.id == nodeId);
+    _requirePresent(index, nodeId, label: 'nodeId');
+    return graph.copyWith(
       nodes: graph.nodes.where((n) => n.id != nodeId).toList(),
       edges: graph.edges
           .where((e) => e.childId != nodeId && e.parentId != nodeId)
@@ -57,64 +39,58 @@ class GraphMutator {
   }
 
   LakshyaGraph addEdge(LakshyaGraph graph, Edge edge) {
-    if (graph.edges.any((e) => e.id == edge.id)) {
-      throw ArgumentError.value(
-        edge.id,
-        'edge.id',
-        'an edge with this id already exists',
-      );
-    }
+    _requireUniqueId(graph.edges.map((e) => e.id), edge.id, label: 'edge.id');
     final nodeIds = graph.nodes.map((n) => n.id).toSet();
-    if (!nodeIds.contains(edge.childId)) {
-      throw ArgumentError.value(
-        edge.childId,
-        'edge.childId',
-        'no node with this id exists',
-      );
-    }
-    if (!nodeIds.contains(edge.parentId)) {
-      throw ArgumentError.value(
-        edge.parentId,
-        'edge.parentId',
-        'no node with this id exists',
-      );
-    }
-    final traversal = GraphTraversal(graph);
-    if (traversal.wouldFormCycle(
+    _requireKnownNode(nodeIds, edge.childId, label: 'edge.childId');
+    _requireKnownNode(nodeIds, edge.parentId, label: 'edge.parentId');
+    if (GraphTraversal(graph).wouldFormCycle(
         childId: edge.childId, parentId: edge.parentId)) {
       throw StateError(
         'edge from ${edge.childId} to ${edge.parentId} would form a cycle',
       );
     }
-    return _copyWith(graph, edges: [...graph.edges, edge]);
+    return graph.copyWith(edges: [...graph.edges, edge]);
   }
 
   LakshyaGraph removeEdge(LakshyaGraph graph, String edgeId) {
-    if (!graph.edges.any((e) => e.id == edgeId)) {
-      throw ArgumentError.value(
-        edgeId,
-        'edgeId',
-        'no edge with this id exists',
-      );
-    }
-    return _copyWith(
-      graph,
+    final index = graph.edges.indexWhere((e) => e.id == edgeId);
+    _requirePresent(index, edgeId, label: 'edgeId');
+    return graph.copyWith(
       edges: graph.edges.where((e) => e.id != edgeId).toList(),
     );
   }
 
-  LakshyaGraph _copyWith(
-    LakshyaGraph graph, {
-    List<Node>? nodes,
-    List<Edge>? edges,
+  void _requireUniqueId(
+    Iterable<String> existingIds,
+    String candidate, {
+    required String label,
   }) {
-    return LakshyaGraph(
-      schemaVersion: graph.schemaVersion,
-      nodes: nodes ?? graph.nodes,
-      edges: edges ?? graph.edges,
-      priorityPins: graph.priorityPins,
-      filterPresets: graph.filterPresets,
-      settings: graph.settings,
-    );
+    if (existingIds.contains(candidate)) {
+      throw ArgumentError.value(
+        candidate,
+        label,
+        'an item with this id already exists',
+      );
+    }
+  }
+
+  void _requirePresent(int index, String id, {required String label}) {
+    if (index < 0) {
+      throw ArgumentError.value(id, label, 'no item with this id exists');
+    }
+  }
+
+  void _requireKnownNode(
+    Set<String> knownNodeIds,
+    String candidate, {
+    required String label,
+  }) {
+    if (!knownNodeIds.contains(candidate)) {
+      throw ArgumentError.value(
+        candidate,
+        label,
+        'no node with this id exists',
+      );
+    }
   }
 }

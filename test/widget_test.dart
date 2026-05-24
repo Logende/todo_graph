@@ -15,7 +15,7 @@ void main() {
         Node(
           id: 'root',
           title: 'All goals achieved',
-          status: const AlwaysOnStatus(),
+          status: NodeStatus.alwaysOnBackground,
           createdAt: DateTime.utc(2026, 5, 24),
         ),
       ],

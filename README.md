@@ -40,6 +40,7 @@ These rules apply to every change in this repo:
 4. **Dependency injection over globals.** Services and repositories are passed in, not reached for.
 5. **Small, single-purpose functions.** If a function needs a paragraph to explain, split it.
 6. **Schema-first data model.** Data shape changes start in `schema/lakshya.schema.json` (documentation + runtime validation), and are then reflected by hand in the corresponding Dart classes in `lib/model/` with matching tests.
+7. **No legacy code while pre-release.** One source of truth, always current. Do not keep migrators, deprecated APIs, "v1" code paths, or compatibility shims for shapes that nothing in the repo still produces. When the data model changes, change every site at once and delete the old shape. Legacy support comes back only after the app is published and real users have data on disk that must be preserved.
 
 ## Build phases
 

@@ -1,282 +1,121 @@
 import 'package:equatable/equatable.dart';
 
-/// Discriminator for the [NodeStatus] sealed hierarchy.
+import 'activation_window.dart';
+import 'completion.dart';
+
+/// The full lifecycle state of a node, composed of two orthogonal axes:
+/// when the node is live ([activation]) and what it means to be done
+/// ([completion]).
 ///
-/// The string values match `schema/lakshya.schema.json` exactly so the JSON on
-/// disk stays stable when the schema is regenerated for documentation.
-enum StatusType {
-  alwaysOn('always_on'),
-  oneTime('one_time'),
-  nTimes('n_times'),
-  periodic('periodic'),
-  temporarilyActive('temporarily_active');
-
-  const StatusType(this.jsonValue);
-
-  final String jsonValue;
-
-  static StatusType fromJsonValue(String raw) {
-    return StatusType.values.firstWhere(
-      (value) => value.jsonValue == raw,
-      orElse: () => throw FormatException('Unknown StatusType: "$raw"'),
-    );
-  }
-}
-
-/// One node's completion state. Each subtype models a different kind of life
-/// cycle; the graph engine, ordering, and reminder layer all dispatch on these
-/// variants.
-sealed class NodeStatus extends Equatable {
-  const NodeStatus();
-
-  StatusType get type;
-
-  /// True if the node represented by this status should appear in the
-  /// "currently actionable" set at clock reading [now].
-  bool isOngoingAt(DateTime now);
-
-  /// Returns the status after the user marks the node complete at [now].
-  /// For statuses that have no completion concept (always-on) the same
-  /// instance is returned unchanged.
-  NodeStatus markCompletedAt(DateTime now);
-
-  Map<String, dynamic> toJson();
-
-  static NodeStatus fromJson(Map<String, dynamic> json) {
-    final raw = json['type'] as String?;
-    if (raw == null) {
-      throw const FormatException('NodeStatus is missing "type" field');
-    }
-    final type = StatusType.fromJsonValue(raw);
-    return switch (type) {
-      StatusType.alwaysOn => const AlwaysOnStatus(),
-      StatusType.oneTime => OneTimeStatus.fromJson(json),
-      StatusType.nTimes => NTimesStatus.fromJson(json),
-      StatusType.periodic => PeriodicStatus.fromJson(json),
-      StatusType.temporarilyActive => TemporarilyActiveStatus.fromJson(json),
-    };
-  }
-}
-
-/// Background goal with no completion state. Used for top-level life areas
-/// like "Health" or "Work".
-final class AlwaysOnStatus extends NodeStatus {
-  const AlwaysOnStatus();
-
-  @override
-  StatusType get type => StatusType.alwaysOn;
-
-  @override
-  bool isOngoingAt(DateTime now) => true;
-
-  @override
-  NodeStatus markCompletedAt(DateTime now) => this;
-
-  @override
-  Map<String, dynamic> toJson() => {'type': type.jsonValue};
-
-  @override
-  List<Object?> get props => const [];
-}
-
-/// Task that is completed exactly once and then permanently done.
-final class OneTimeStatus extends NodeStatus {
-  const OneTimeStatus({this.completedAt});
-
-  /// Absent while the task is open; set on completion.
-  final DateTime? completedAt;
-
-  bool get isCompleted => completedAt != null;
-
-  @override
-  StatusType get type => StatusType.oneTime;
-
-  @override
-  bool isOngoingAt(DateTime now) => !isCompleted;
-
-  @override
-  NodeStatus markCompletedAt(DateTime now) => OneTimeStatus(completedAt: now);
-
-  @override
-  Map<String, dynamic> toJson() => {
-        'type': type.jsonValue,
-        if (completedAt != null) 'completedAt': completedAt!.toIso8601String(),
-      };
-
-  factory OneTimeStatus.fromJson(Map<String, dynamic> json) {
-    final raw = json['completedAt'] as String?;
-    return OneTimeStatus(
-      completedAt: raw == null ? null : DateTime.parse(raw),
-    );
-  }
-
-  @override
-  List<Object?> get props => [completedAt];
-}
-
-/// Task that must be completed a fixed number of times.
-final class NTimesStatus extends NodeStatus {
-  const NTimesStatus({
-    required this.targetCount,
-    this.completedCount = 0,
-    this.lastCompletedAt,
-  })  : assert(targetCount >= 1, 'targetCount must be at least 1'),
-        assert(completedCount >= 0, 'completedCount cannot be negative');
-
-  final int targetCount;
-  final int completedCount;
-  final DateTime? lastCompletedAt;
-
-  int get remainingCount =>
-      (targetCount - completedCount).clamp(0, targetCount);
-
-  bool get isExhausted => completedCount >= targetCount;
-
-  @override
-  StatusType get type => StatusType.nTimes;
-
-  @override
-  bool isOngoingAt(DateTime now) => !isExhausted;
-
-  @override
-  NodeStatus markCompletedAt(DateTime now) => NTimesStatus(
-        targetCount: targetCount,
-        completedCount: (completedCount + 1).clamp(0, targetCount),
-        lastCompletedAt: now,
-      );
-
-  @override
-  Map<String, dynamic> toJson() => {
-        'type': type.jsonValue,
-        'targetCount': targetCount,
-        'completedCount': completedCount,
-        if (lastCompletedAt != null)
-          'lastCompletedAt': lastCompletedAt!.toIso8601String(),
-      };
-
-  factory NTimesStatus.fromJson(Map<String, dynamic> json) {
-    final lastRaw = json['lastCompletedAt'] as String?;
-    return NTimesStatus(
-      targetCount: json['targetCount'] as int,
-      completedCount: (json['completedCount'] as int?) ?? 0,
-      lastCompletedAt: lastRaw == null ? null : DateTime.parse(lastRaw),
-    );
-  }
-
-  @override
-  List<Object?> get props => [targetCount, completedCount, lastCompletedAt];
-}
-
-/// Task that re-opens a fixed number of days AFTER the previous completion.
-/// Completing late pushes the next due date forward; the cadence is relative,
-/// not absolute on a calendar.
-final class PeriodicStatus extends NodeStatus {
-  const PeriodicStatus({
-    required this.intervalDaysSinceLastCompletion,
-    this.lastCompletedAt,
-  }) : assert(intervalDaysSinceLastCompletion >= 1,
-            'interval must be at least 1 day');
-
-  final int intervalDaysSinceLastCompletion;
-
-  /// Absent if the task has never been completed (it is open immediately).
-  final DateTime? lastCompletedAt;
-
-  /// Next moment at which this task should re-open. `null` means "open now".
-  DateTime? nextDueAt() {
-    final completed = lastCompletedAt;
-    if (completed == null) return null;
-    return completed.add(Duration(days: intervalDaysSinceLastCompletion));
-  }
-
-  /// True if the task is currently actionable for the given clock reading.
-  bool isOpenAt(DateTime now) {
-    final next = nextDueAt();
-    return next == null || !now.isBefore(next);
-  }
-
-  @override
-  StatusType get type => StatusType.periodic;
-
-  @override
-  bool isOngoingAt(DateTime now) => isOpenAt(now);
-
-  @override
-  NodeStatus markCompletedAt(DateTime now) => PeriodicStatus(
-        intervalDaysSinceLastCompletion: intervalDaysSinceLastCompletion,
-        lastCompletedAt: now,
-      );
-
-  @override
-  Map<String, dynamic> toJson() => {
-        'type': type.jsonValue,
-        'intervalDaysSinceLastCompletion': intervalDaysSinceLastCompletion,
-        if (lastCompletedAt != null)
-          'lastCompletedAt': lastCompletedAt!.toIso8601String(),
-      };
-
-  factory PeriodicStatus.fromJson(Map<String, dynamic> json) {
-    final lastRaw = json['lastCompletedAt'] as String?;
-    return PeriodicStatus(
-      intervalDaysSinceLastCompletion:
-          json['intervalDaysSinceLastCompletion'] as int,
-      lastCompletedAt: lastRaw == null ? null : DateTime.parse(lastRaw),
-    );
-  }
-
-  @override
-  List<Object?> get props =>
-      [intervalDaysSinceLastCompletion, lastCompletedAt];
-}
-
-/// Task or goal that is only active during a bounded time window. Outside the
-/// window it is inactive regardless of completion.
-final class TemporarilyActiveStatus extends NodeStatus {
-  const TemporarilyActiveStatus({
-    required this.activeFrom,
-    required this.activeUntil,
-    this.completedAt,
+/// Either axis can be the "background" choice — `AlwaysActive` always-on,
+/// and `completion: null` for a goal that has no completion concept (e.g.
+/// "Health"). Combining a bounded window with an N-times completion is the
+/// driving use case for this composite (e.g. "in May, do 3 chess puzzles").
+class NodeStatus extends Equatable {
+  const NodeStatus({
+    this.activation = const AlwaysActive(),
+    this.completion,
   });
 
-  final DateTime activeFrom;
-  final DateTime activeUntil;
-  final DateTime? completedAt;
+  /// Background goal with no completion concept. The most common status for
+  /// top-level life areas.
+  static const NodeStatus alwaysOnBackground =
+      NodeStatus(activation: AlwaysActive());
 
-  bool isActiveAt(DateTime now) =>
-      !now.isBefore(activeFrom) && !now.isAfter(activeUntil);
+  /// Convenience: always active, one-shot completion.
+  NodeStatus.oneTime({DateTime? completedAt})
+      : activation = const AlwaysActive(),
+        completion = OneTimeCompletion(completedAt: completedAt);
 
-  bool get isCompleted => completedAt != null;
+  /// Convenience: always active, N-times completion.
+  NodeStatus.nTimes({
+    required int targetCount,
+    int completedCount = 0,
+    DateTime? lastCompletedAt,
+  })  : activation = const AlwaysActive(),
+        completion = NTimesCompletion(
+          targetCount: targetCount,
+          completedCount: completedCount,
+          lastCompletedAt: lastCompletedAt,
+        );
 
-  @override
-  StatusType get type => StatusType.temporarilyActive;
+  /// Convenience: always active, periodic completion with a fixed cool-down
+  /// in days relative to the previous completion.
+  NodeStatus.periodic({
+    required int intervalDaysSinceLastCompletion,
+    DateTime? lastCompletedAt,
+  })  : activation = const AlwaysActive(),
+        completion = PeriodicCompletion(
+          intervalDaysSinceLastCompletion: intervalDaysSinceLastCompletion,
+          lastCompletedAt: lastCompletedAt,
+        );
 
-  @override
-  bool isOngoingAt(DateTime now) => isActiveAt(now) && !isCompleted;
+  /// Convenience: bounded activation window with an optional completion
+  /// aspect inside the window.
+  NodeStatus.bounded({
+    required DateTime activeFrom,
+    required DateTime activeUntil,
+    this.completion,
+  }) : activation = BoundedActive(
+          activeFrom: activeFrom,
+          activeUntil: activeUntil,
+        );
 
-  @override
-  NodeStatus markCompletedAt(DateTime now) => TemporarilyActiveStatus(
-        activeFrom: activeFrom,
-        activeUntil: activeUntil,
-        completedAt: now,
-      );
+  final ActivationWindow activation;
 
-  @override
+  /// `null` means this node is a background goal with no completion concept.
+  final Completion? completion;
+
+  /// A node is ongoing if its window is open AND (it has no completion
+  /// concept OR its completion is not yet satisfied).
+  bool isOngoingAt(DateTime now) {
+    if (!activation.isActiveAt(now)) return false;
+    final c = completion;
+    return c == null || c.isOngoingAt(now);
+  }
+
+  /// Applies a completion event. Background goals (no completion) are
+  /// unchanged. The activation window is preserved.
+  NodeStatus markCompletedAt(DateTime now) {
+    final c = completion;
+    if (c == null) return this;
+    return NodeStatus(
+      activation: activation,
+      completion: c.markCompletedAt(now),
+    );
+  }
+
+  NodeStatus copyWith({
+    ActivationWindow? activation,
+    Completion? completion,
+    bool clearCompletion = false,
+  }) {
+    return NodeStatus(
+      activation: activation ?? this.activation,
+      completion: clearCompletion ? null : (completion ?? this.completion),
+    );
+  }
+
   Map<String, dynamic> toJson() => {
-        'type': type.jsonValue,
-        'activeFrom': activeFrom.toIso8601String(),
-        'activeUntil': activeUntil.toIso8601String(),
-        if (completedAt != null) 'completedAt': completedAt!.toIso8601String(),
+        'activation': activation.toJson(),
+        if (completion != null) 'completion': completion!.toJson(),
       };
 
-  factory TemporarilyActiveStatus.fromJson(Map<String, dynamic> json) {
-    final completedRaw = json['completedAt'] as String?;
-    return TemporarilyActiveStatus(
-      activeFrom: DateTime.parse(json['activeFrom'] as String),
-      activeUntil: DateTime.parse(json['activeUntil'] as String),
-      completedAt: completedRaw == null ? null : DateTime.parse(completedRaw),
+  factory NodeStatus.fromJson(Map<String, dynamic> json) {
+    final activationRaw = json['activation'] as Map<String, dynamic>?;
+    final completionRaw = json['completion'] as Map<String, dynamic>?;
+    if (activationRaw == null) {
+      throw const FormatException(
+        'NodeStatus is missing the required "activation" field',
+      );
+    }
+    return NodeStatus(
+      activation: ActivationWindow.fromJson(activationRaw),
+      completion:
+          completionRaw == null ? null : Completion.fromJson(completionRaw),
     );
   }
 
   @override
-  List<Object?> get props => [activeFrom, activeUntil, completedAt];
+  List<Object?> get props => [activation, completion];
 }

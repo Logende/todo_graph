@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lakshya/model/node_status.dart';
+import 'package:lakshya/model/activation_window.dart';
 import 'package:lakshya/service/graph_initializer.dart';
 import 'package:lakshya/service/id_generator.dart';
 
@@ -16,7 +16,9 @@ void main() {
       expect(graph.nodes, hasLength(1));
       expect(graph.edges, isEmpty);
       expect(graph.nodes.single.title, equals('All goals achieved'));
-      expect(graph.nodes.single.status, isA<AlwaysOnStatus>());
+      expect(graph.nodes.single.status.activation, isA<AlwaysActive>());
+      expect(graph.nodes.single.status.completion, isNull,
+          reason: 'root node is a background goal');
       expect(graph.nodes.single.createdAt, equals(clock));
       expect(graph.settings, isNotNull);
       expect(graph.settings!.rootNodeId, equals(graph.nodes.single.id));

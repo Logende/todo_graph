@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../app/graph_controller.dart';
+import '../model/activation_window.dart';
+import '../model/completion.dart';
 import '../model/filter.dart';
 import '../model/node.dart';
 import '../model/node_status.dart';
@@ -124,12 +126,11 @@ class _NodeTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final subtitle = _subtitleFor(node, now);
     final isOngoing = node.status.isOngoingAt(now);
+    final hasCompletion = node.status.completion != null;
     return ListTile(
       leading: Checkbox(
         value: !isOngoing,
-        onChanged: node.status is AlwaysOnStatus
-            ? null
-            : (_) => onToggleComplete(),
+        onChanged: hasCompletion ? (_) => onToggleComplete() : null,
       ),
       title: Text(node.title),
       subtitle: subtitle == null ? null : Text(subtitle),
@@ -145,25 +146,35 @@ class _NodeTile extends StatelessWidget {
     if (node.deadline != null) {
       parts.add('Due ${_formatDate(node.deadline!)}');
     }
-    final status = node.status;
-    if (status is NTimesStatus) {
-      parts.add('${status.remainingCount} of ${status.targetCount} left');
-    } else if (status is PeriodicStatus) {
-      parts.add('Every ${status.intervalDaysSinceLastCompletion}d');
+    final c = node.status.completion;
+    if (c is NTimesCompletion) {
+      parts.add('${c.remainingCount} of ${c.targetCount} left');
+    } else if (c is PeriodicCompletion) {
+      parts.add('Every ${c.intervalDaysSinceLastCompletion}d');
+    }
+    final a = node.status.activation;
+    if (a is BoundedActive) {
+      parts.add(
+        'Active ${_formatDate(a.activeFrom)} – ${_formatDate(a.activeUntil)}',
+      );
     }
     return parts.isEmpty ? null : parts.join(' • ');
   }
 
   Widget _statusBadge(NodeStatus status) {
-    final label = switch (status) {
-      AlwaysOnStatus() => 'always',
-      OneTimeStatus() => '1×',
-      NTimesStatus() => '${status.targetCount}×',
-      PeriodicStatus() => 'recurs',
-      TemporarilyActiveStatus() => 'window',
+    final completion = status.completion;
+    final completionLabel = switch (completion) {
+      null => 'goal',
+      OneTimeCompletion() => '1×',
+      NTimesCompletion() => '${completion.targetCount}×',
+      PeriodicCompletion() => 'recurs',
     };
+    final boundedSuffix = status.activation is BoundedActive ? ' · window' : '';
     return Chip(
-      label: Text(label, style: const TextStyle(fontSize: 11)),
+      label: Text(
+        '$completionLabel$boundedSuffix',
+        style: const TextStyle(fontSize: 11),
+      ),
       visualDensity: VisualDensity.compact,
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
     );

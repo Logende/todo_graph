@@ -6,8 +6,9 @@ import 'node.dart';
 import 'priority_pin.dart';
 import 'settings.dart';
 
-/// Current on-disk schema version. Bump on breaking changes and add a
-/// migration in the repository layer.
+/// Current on-disk schema version. Pre-release: no legacy support is
+/// maintained — bumping this is fine, files written by older versions of
+/// the app are intentionally not migrated.
 const int kCurrentSchemaVersion = 1;
 
 /// Root document for the Lakshya graph. The full graph (every node, every
@@ -38,6 +39,24 @@ class LakshyaGraph extends Equatable {
   final List<FilterPreset> filterPresets;
   final Settings? settings;
   final int schemaVersion;
+
+  LakshyaGraph copyWith({
+    List<Node>? nodes,
+    List<Edge>? edges,
+    List<PriorityPin>? priorityPins,
+    List<FilterPreset>? filterPresets,
+    Settings? settings,
+    bool clearSettings = false,
+  }) {
+    return LakshyaGraph(
+      schemaVersion: schemaVersion,
+      nodes: nodes ?? this.nodes,
+      edges: edges ?? this.edges,
+      priorityPins: priorityPins ?? this.priorityPins,
+      filterPresets: filterPresets ?? this.filterPresets,
+      settings: clearSettings ? null : (settings ?? this.settings),
+    );
+  }
 
   Map<String, dynamic> toJson() => {
         'schemaVersion': schemaVersion,

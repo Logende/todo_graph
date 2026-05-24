@@ -1,30 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lakshya/model/contribution.dart';
-import 'package:lakshya/model/edge.dart';
 import 'package:lakshya/model/lakshya_graph.dart';
-import 'package:lakshya/model/node.dart';
-import 'package:lakshya/model/node_status.dart';
 import 'package:lakshya/service/graph_traversal.dart';
 
-Node _node(String id) => Node(
-      id: id,
-      title: id,
-      status: const AlwaysOnStatus(),
-      createdAt: DateTime.utc(2026, 5, 24),
-    );
-
-Edge _edge(
-  String id,
-  String child,
-  String parent, {
-  Contribution contribution = Contribution.mandatory,
-}) =>
-    Edge(
-      id: id,
-      childId: child,
-      parentId: parent,
-      contribution: contribution,
-    );
+import '../support/builders.dart';
 
 void main() {
   group('GraphTraversal', () {
@@ -43,27 +22,23 @@ void main() {
     setUp(() {
       graph = LakshyaGraph(
         nodes: [
-          _node('root'),
-          _node('health'),
-          _node('work'),
-          _node('fitness'),
-          _node('finish-phd'),
-          _node('pushday'),
-          _node('publish'),
-          _node('llm-paper'),
+          buildNode('root'),
+          buildNode('health'),
+          buildNode('work'),
+          buildNode('fitness'),
+          buildNode('finish-phd'),
+          buildNode('pushday'),
+          buildNode('publish'),
+          buildNode('llm-paper'),
         ],
         edges: [
-          _edge('e1', 'health', 'root'),
-          _edge('e2', 'work', 'root'),
-          _edge('e3', 'fitness', 'health'),
-          _edge('e4', 'finish-phd', 'work'),
-          _edge('e5', 'pushday', 'fitness'),
-          _edge('e6', 'publish', 'finish-phd'),
-          _edge(
-            'e7',
-            'llm-paper',
-            'publish',
-            contribution: Contribution.helpful,
+          buildEdge('e1', from: 'health', to: 'root'),
+          buildEdge('e2', from: 'work', to: 'root'),
+          buildEdge('e3', from: 'fitness', to: 'health'),
+          buildEdge('e4', from: 'finish-phd', to: 'work'),
+          buildEdge('e5', from: 'pushday', to: 'fitness'),
+          buildEdge('e6', from: 'publish', to: 'finish-phd'),
+          buildEdge('e7', from: 'llm-paper', to: 'publish', contribution: Contribution.helpful,
           ),
         ],
       );
@@ -107,11 +82,11 @@ void main() {
 
     test('ancestorsOf walks up through multiple parents', () {
       final multiParent = LakshyaGraph(
-        nodes: [_node('a'), _node('b'), _node('c'), _node('shared')],
+        nodes: [buildNode('a'), buildNode('b'), buildNode('c'), buildNode('shared')],
         edges: [
-          _edge('e1', 'shared', 'a'),
-          _edge('e2', 'shared', 'b'),
-          _edge('e3', 'a', 'c'),
+          buildEdge('e1', from: 'shared', to: 'a'),
+          buildEdge('e2', from: 'shared', to: 'b'),
+          buildEdge('e3', from: 'a', to: 'c'),
         ],
       );
       final t = GraphTraversal(multiParent);
@@ -148,16 +123,16 @@ void main() {
         () {
       final shared = LakshyaGraph(
         nodes: [
-          _node('root'),
-          _node('a'),
-          _node('b'),
-          _node('shared'),
+          buildNode('root'),
+          buildNode('a'),
+          buildNode('b'),
+          buildNode('shared'),
         ],
         edges: [
-          _edge('e1', 'a', 'root'),
-          _edge('e2', 'b', 'root'),
-          _edge('e3', 'shared', 'a'),
-          _edge('e4', 'shared', 'b'),
+          buildEdge('e1', from: 'a', to: 'root'),
+          buildEdge('e2', from: 'b', to: 'root'),
+          buildEdge('e3', from: 'shared', to: 'a'),
+          buildEdge('e4', from: 'shared', to: 'b'),
         ],
       );
       final t = GraphTraversal(shared);

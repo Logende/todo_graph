@@ -33,9 +33,19 @@ class FilterEvaluator {
       candidates = candidates.where((n) => inScope.contains(n.id));
     }
 
-    if (filter.statusTypes.isNotEmpty) {
-      final allowed = filter.statusTypes.toSet();
-      candidates = candidates.where((n) => allowed.contains(n.status.type));
+    if (filter.activationKinds.isNotEmpty) {
+      final allowed = filter.activationKinds.toSet();
+      candidates =
+          candidates.where((n) => allowed.contains(n.status.activation.kind));
+    }
+
+    if (filter.completionKinds.isNotEmpty) {
+      final allowed = filter.completionKinds.toSet();
+      candidates = candidates.where((n) {
+        final c = n.status.completion;
+        final key = c == null ? 'none' : c.kind;
+        return allowed.contains(key);
+      });
     }
 
     if (filter.onlyOngoing) {

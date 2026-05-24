@@ -14,7 +14,7 @@ Node _n(
     Node(
       id: id,
       title: id,
-      status: const AlwaysOnStatus(),
+      status: NodeStatus.alwaysOnBackground,
       deadline: deadline,
       priority: priority,
       positiveImpact: positiveImpact,

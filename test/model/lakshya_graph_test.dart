@@ -29,14 +29,14 @@ void main() {
           Node(
             id: 'n-1',
             title: 'Health',
-            status: const AlwaysOnStatus(),
+            status: NodeStatus.alwaysOnBackground,
             createdAt: DateTime.utc(2026, 5, 24),
           ),
           Node(
             id: 'n-2',
             title: 'Respond to Watzenborn',
             description: 'Urgent deadline',
-            status: const OneTimeStatus(),
+            status: NodeStatus.oneTime(),
             deadline: DateTime.utc(2026, 5, 26, 17),
             priority: 9.0,
             positiveImpact: 5.0,
@@ -71,7 +71,8 @@ void main() {
             filter: Filter(
               ancestorGoalIds: ['n-1'],
               contribution: FilterContribution.mandatory,
-              statusTypes: [StatusType.periodic, StatusType.oneTime],
+              completionKinds: ['periodic', 'one_time'],
+              activationKinds: ['always_active'],
               onlyOngoing: true,
               onlyLeaves: true,
               freeText: 'urgent',

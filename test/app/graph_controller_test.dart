@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lakshya/app/graph_controller.dart';
 import 'package:lakshya/model/lakshya_graph.dart';
 import 'package:lakshya/model/node.dart';
+import 'package:lakshya/model/completion.dart';
 import 'package:lakshya/model/node_status.dart';
 import 'package:lakshya/service/id_generator.dart';
 
@@ -24,7 +25,7 @@ void main() {
           Node(
             id: 'root',
             title: 'All goals achieved',
-            status: const AlwaysOnStatus(),
+            status: NodeStatus.alwaysOnBackground,
             createdAt: DateTime.utc(2026, 5, 24),
           ),
         ],
@@ -43,7 +44,7 @@ void main() {
       controller.addChildNode(
         title: 'Health',
         parentId: 'root',
-        status: const AlwaysOnStatus(),
+        status: NodeStatus.alwaysOnBackground,
       );
 
       expect(controller.graph.nodes.map((n) => n.id),
@@ -64,7 +65,7 @@ void main() {
           Node(
             id: 'task',
             title: 'Write paper',
-            status: const OneTimeStatus(),
+            status: NodeStatus.oneTime(),
             createdAt: DateTime.utc(2026, 5, 24),
           ),
         ],
@@ -80,7 +81,8 @@ void main() {
 
       controller.markCompleted('task');
 
-      final updated = controller.graph.nodes.single.status as OneTimeStatus;
+      final updated =
+          controller.graph.nodes.single.status.completion as OneTimeCompletion;
       expect(updated.completedAt, equals(completedAt));
     });
 
@@ -90,7 +92,7 @@ void main() {
           Node(
             id: 'old',
             title: 'Old',
-            status: const AlwaysOnStatus(),
+            status: NodeStatus.alwaysOnBackground,
             createdAt: DateTime.utc(2026, 5, 24),
           ),
         ],

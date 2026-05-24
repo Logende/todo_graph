@@ -1,47 +1,26 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lakshya/model/contribution.dart';
-import 'package:lakshya/model/edge.dart';
 import 'package:lakshya/model/filter.dart';
 import 'package:lakshya/model/lakshya_graph.dart';
 import 'package:lakshya/model/node.dart';
 import 'package:lakshya/model/node_status.dart';
 import 'package:lakshya/service/filter_evaluator.dart';
 
-Node _alwaysOn(String id, {String? description}) => Node(
-      id: id,
-      title: id,
-      description: description,
-      status: const AlwaysOnStatus(),
-      createdAt: DateTime.utc(2026, 5, 24),
-    );
+import '../support/builders.dart';
 
-Node _oneTime(String id, {DateTime? completedAt}) => Node(
-      id: id,
-      title: id,
-      status: OneTimeStatus(completedAt: completedAt),
-      createdAt: DateTime.utc(2026, 5, 24),
-    );
+Node _alwaysOn(String id, {String? description}) =>
+    buildNode(id, description: description);
+
+Node _oneTime(String id, {DateTime? completedAt}) =>
+    buildNode(id, status: NodeStatus.oneTime(completedAt: completedAt));
 
 Node _periodic(String id,
         {required int interval, DateTime? lastCompletedAt}) =>
-    Node(
-      id: id,
-      title: id,
-      status: PeriodicStatus(
-        intervalDaysSinceLastCompletion: interval,
-        lastCompletedAt: lastCompletedAt,
-      ),
-      createdAt: DateTime.utc(2026, 5, 24),
-    );
-
-Edge _edge(String id, String child, String parent,
-        {Contribution contribution = Contribution.mandatory}) =>
-    Edge(
-      id: id,
-      childId: child,
-      parentId: parent,
-      contribution: contribution,
-    );
+    buildNode(id,
+        status: NodeStatus.periodic(
+          intervalDaysSinceLastCompletion: interval,
+          lastCompletedAt: lastCompletedAt,
+        ));
 
 void main() {
   group('FilterEvaluator', () {
@@ -61,13 +40,12 @@ void main() {
           _alwaysOn('llm-paper', description: 'urgent llm paper'),
         ],
         edges: [
-          _edge('e1', 'health', 'root'),
-          _edge('e2', 'work', 'root'),
-          _edge('e3', 'pushday', 'health'),
-          _edge('e4', 'write-paper', 'work'),
-          _edge('e5', 'done-thing', 'work'),
-          _edge('e6', 'llm-paper', 'write-paper',
-              contribution: Contribution.helpful),
+          buildEdge('e1', from: 'health', to: 'root'),
+          buildEdge('e2', from: 'work', to: 'root'),
+          buildEdge('e3', from: 'pushday', to: 'health'),
+          buildEdge('e4', from: 'write-paper', to: 'work'),
+          buildEdge('e5', from: 'done-thing', to: 'work'),
+          buildEdge('e6', from: 'llm-paper', to: 'write-paper', contribution: Contribution.helpful),
         ],
       );
     });
@@ -110,10 +88,17 @@ void main() {
       );
     });
 
-    test('statusTypes restricts by status kind', () {
+    test('completionKinds restricts by completion kind', () {
       final result = FilterEvaluator(graph: graph, now: now)
-          .apply(const Filter(statusTypes: [StatusType.periodic]));
+          .apply(const Filter(completionKinds: ['periodic']));
       expect(result.map((n) => n.id), equals(['pushday']));
+    });
+
+    test('completionKinds=["none"] keeps background goals', () {
+      final result = FilterEvaluator(graph: graph, now: now)
+          .apply(const Filter(completionKinds: ['none']));
+      expect(result.map((n) => n.id).toSet(),
+          equals({'root', 'health', 'work', 'llm-paper'}));
     });
 
     test('onlyOngoing drops completed one_time and pre-cool-down periodic',

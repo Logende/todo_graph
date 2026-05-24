@@ -63,79 +63,74 @@
       }
     },
     "NodeStatus": {
-      "description": "Discriminated union of status kinds. The 'type' field selects the variant.",
+      "type": "object",
+      "required": ["activation"],
+      "additionalProperties": false,
+      "description": "Composite of two orthogonal axes: when the node is live (activation) and what it means to be done (completion). Either axis can be set independently, allowing e.g. 'active only during May, must be done 3 times in that window'.",
+      "properties": {
+        "activation": { "$ref": "#/$defs/ActivationWindow" },
+        "completion": { "$ref": "#/$defs/Completion" }
+      }
+    },
+    "ActivationWindow": {
+      "description": "Discriminated union: 'always_active' or 'bounded' (with from/until).",
       "oneOf": [
-        { "$ref": "#/$defs/StatusAlwaysOn" },
-        { "$ref": "#/$defs/StatusOneTime" },
-        { "$ref": "#/$defs/StatusNTimes" },
-        { "$ref": "#/$defs/StatusPeriodic" },
-        { "$ref": "#/$defs/StatusTemporarilyActive" }
+        { "$ref": "#/$defs/ActivationAlwaysActive" },
+        { "$ref": "#/$defs/ActivationBounded" }
       ]
     },
-    "StatusAlwaysOn": {
+    "ActivationAlwaysActive": {
       "type": "object",
-      "required": ["type"],
+      "required": ["kind"],
       "additionalProperties": false,
-      "description": "Background goal with no completion state. Used for top-level life areas like 'Health' or 'Work'.",
+      "properties": { "kind": { "const": "always_active" } }
+    },
+    "ActivationBounded": {
+      "type": "object",
+      "required": ["kind", "activeFrom", "activeUntil"],
+      "additionalProperties": false,
       "properties": {
-        "type": { "const": "always_on" }
+        "kind": { "const": "bounded" },
+        "activeFrom": { "type": "string", "format": "date-time" },
+        "activeUntil": { "type": "string", "format": "date-time" }
       }
     },
-    "StatusOneTime": {
+    "Completion": {
+      "description": "Discriminated union of completion semantics. Absent (null) means this is a background goal with no completion concept.",
+      "oneOf": [
+        { "$ref": "#/$defs/CompletionOneTime" },
+        { "$ref": "#/$defs/CompletionNTimes" },
+        { "$ref": "#/$defs/CompletionPeriodic" }
+      ]
+    },
+    "CompletionOneTime": {
       "type": "object",
-      "required": ["type"],
+      "required": ["kind"],
       "additionalProperties": false,
-      "description": "Task that is completed exactly once and then permanently done.",
       "properties": {
-        "type": { "const": "one_time" },
-        "completedAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Absent while open; set on completion."
-        }
+        "kind": { "const": "one_time" },
+        "completedAt": { "type": "string", "format": "date-time" }
       }
     },
-    "StatusNTimes": {
+    "CompletionNTimes": {
       "type": "object",
-      "required": ["type", "targetCount"],
+      "required": ["kind", "targetCount"],
       "additionalProperties": false,
-      "description": "Task that must be completed a fixed number of times. Tracks remaining completions.",
       "properties": {
-        "type": { "const": "n_times" },
+        "kind": { "const": "n_times" },
         "targetCount": { "type": "integer", "minimum": 1 },
         "completedCount": { "type": "integer", "minimum": 0 },
         "lastCompletedAt": { "type": "string", "format": "date-time" }
       }
     },
-    "StatusPeriodic": {
+    "CompletionPeriodic": {
       "type": "object",
-      "required": ["type", "intervalDaysSinceLastCompletion"],
+      "required": ["kind", "intervalDaysSinceLastCompletion"],
       "additionalProperties": false,
-      "description": "Task that re-opens a fixed number of days AFTER the last completion. Completing late pushes the next due date forward; the cadence is relative, not absolute.",
       "properties": {
-        "type": { "const": "periodic" },
-        "intervalDaysSinceLastCompletion": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "Days to wait after a completion before this task is considered open again."
-        },
-        "lastCompletedAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Absent if never completed (task is open immediately)."
-        }
-      }
-    },
-    "StatusTemporarilyActive": {
-      "type": "object",
-      "required": ["type", "activeFrom", "activeUntil"],
-      "additionalProperties": false,
-      "description": "Task or goal that is only active during a bounded time window. Outside the window it is inactive regardless of completion.",
-      "properties": {
-        "type": { "const": "temporarily_active" },
-        "activeFrom": { "type": "string", "format": "date-time" },
-        "activeUntil": { "type": "string", "format": "date-time" },
-        "completedAt": { "type": "string", "format": "date-time" }
+        "kind": { "const": "periodic" },
+        "intervalDaysSinceLastCompletion": { "type": "integer", "minimum": 1 },
+        "lastCompletedAt": { "type": "string", "format": "date-time" }
       }
     },
     "Attachment": {
@@ -255,13 +250,21 @@
           "enum": ["any", "mandatory", "helpful"],
           "description": "Restrict to incoming edges of this contribution kind when computing descendants."
         },
-        "statusTypes": {
+        "completionKinds": {
           "type": "array",
           "items": {
             "type": "string",
-            "enum": ["always_on", "one_time", "n_times", "periodic", "temporarily_active"]
+            "enum": ["none", "one_time", "n_times", "periodic"]
           },
-          "description": "Keep only nodes whose status type is one of these."
+          "description": "Keep only nodes whose completion kind matches. 'none' matches background goals (no completion aspect)."
+        },
+        "activationKinds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["always_active", "bounded"]
+          },
+          "description": "Keep only nodes whose activation window kind matches."
         },
         "onlyOngoing": {
           "type": "boolean",
