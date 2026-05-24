@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lakshya/model/contribution.dart';
 import 'package:lakshya/model/impact.dart';
 import 'package:lakshya/model/lakshya_graph.dart';
 import 'package:lakshya/model/node_relationship.dart';
@@ -148,6 +149,64 @@ void main() {
       expect(queries.alternativesOf('a'), equals({'d'}));
       expect(queries.alternativesOf('d'), equals({'a'}));
       expect(queries.alternativesOf('b'), isEmpty);
+    });
+  });
+
+  group('NodeQueries.openMandatoryChildrenOf', () {
+    final now = DateTime.utc(2026, 5, 24, 12);
+
+    test('returns mandatory children that are still ongoing', () {
+      final graph = LakshyaGraph(
+        nodes: [
+          buildNode('parent', status: NodeStatus.oneTime()),
+          buildNode('child', status: NodeStatus.oneTime()),
+        ],
+        edges: [buildEdge('e1', from: 'child', to: 'parent')],
+      );
+      expect(NodeQueries(graph).openMandatoryChildrenOf('parent', now),
+          equals({'child'}));
+    });
+
+    test('skips completed mandatory children', () {
+      final graph = LakshyaGraph(
+        nodes: [
+          buildNode('parent', status: NodeStatus.oneTime()),
+          buildNode('child',
+              status: NodeStatus.oneTime(completedAt: now)),
+        ],
+        edges: [buildEdge('e1', from: 'child', to: 'parent')],
+      );
+      expect(NodeQueries(graph).openMandatoryChildrenOf('parent', now),
+          isEmpty);
+    });
+
+    test('skips helpful children', () {
+      final graph = LakshyaGraph(
+        nodes: [
+          buildNode('parent', status: NodeStatus.oneTime()),
+          buildNode('helpful', status: NodeStatus.oneTime()),
+        ],
+        edges: [
+          buildEdge('e1',
+              from: 'helpful',
+              to: 'parent',
+              contribution: Contribution.helpful),
+        ],
+      );
+      expect(NodeQueries(graph).openMandatoryChildrenOf('parent', now),
+          isEmpty);
+    });
+
+    test('skips background-goal children (they never close)', () {
+      final graph = LakshyaGraph(
+        nodes: [
+          buildNode('parent', status: NodeStatus.oneTime()),
+          buildNode('alwaysOnChild'),
+        ],
+        edges: [buildEdge('e1', from: 'alwaysOnChild', to: 'parent')],
+      );
+      expect(NodeQueries(graph).openMandatoryChildrenOf('parent', now),
+          isEmpty);
     });
   });
 }

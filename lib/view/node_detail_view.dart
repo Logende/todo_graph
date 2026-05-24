@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../app/graph_controller.dart';
 import '../model/edge.dart';
+import '../model/impact.dart';
 import '../model/node.dart';
 import '../model/node_relationship.dart';
 import '../service/node_queries.dart';
@@ -72,6 +73,11 @@ class _DetailScaffold extends StatelessWidget {
         title: Text(node.title),
         actions: [
           IconButton(
+            tooltip: 'Edit node',
+            icon: const Icon(Icons.edit_outlined),
+            onPressed: () => _openEditor(context),
+          ),
+          IconButton(
             tooltip: 'Delete this node',
             icon: const Icon(Icons.delete_outline),
             onPressed: () => _confirmDelete(context),
@@ -124,6 +130,15 @@ class _DetailScaffold extends StatelessWidget {
   String _titleForId(String id) {
     final match = controller.graph.nodes.where((n) => n.id == id).firstOrNull;
     return match?.title ?? '(missing node $id)';
+  }
+
+  Future<void> _openEditor(BuildContext context) async {
+    final updated = await showDialog<Node>(
+      context: context,
+      builder: (_) => _NodeEditorDialog(initial: node),
+    );
+    if (updated == null) return;
+    controller.updateNode(updated);
   }
 
   Future<void> _confirmDelete(BuildContext context) async {
@@ -342,3 +357,148 @@ String _arrowFor(RelationshipKind kind) => switch (kind) {
       RelationshipKind.lessImportantThan => '<',
       RelationshipKind.alternativeTo => '~',
     };
+
+/// In-place editor for a node's intrinsic fields. Scoped to the values the
+/// detail screen surfaces: title, description, impact, deadline. Activation
+/// + completion semantics stay where they were created (use AddNodeView for
+/// new shapes).
+class _NodeEditorDialog extends StatefulWidget {
+  const _NodeEditorDialog({required this.initial});
+  final Node initial;
+
+  @override
+  State<_NodeEditorDialog> createState() => _NodeEditorDialogState();
+}
+
+class _NodeEditorDialogState extends State<_NodeEditorDialog> {
+  late final TextEditingController _titleController =
+      TextEditingController(text: widget.initial.title);
+  late final TextEditingController _descriptionController =
+      TextEditingController(text: widget.initial.description ?? '');
+  late Impact? _impact = widget.initial.impact;
+  late DateTime? _deadline = widget.initial.deadline;
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final title = _titleController.text.trim();
+    if (title.isEmpty) return;
+    final description = _descriptionController.text.trim();
+    final updated = widget.initial.copyWith(
+      title: title,
+      description: description.isEmpty ? null : description,
+      clearDescription: description.isEmpty,
+      impact: _impact,
+      clearImpact: _impact == null,
+      deadline: _deadline,
+      clearDeadline: _deadline == null,
+      updatedAt: DateTime.now(),
+    );
+    Navigator.of(context).pop(updated);
+  }
+
+  Future<void> _pickDeadline() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _deadline ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) setState(() => _deadline = picked);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Edit node'),
+      content: SizedBox(
+        width: 400,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextField(
+                controller: _titleController,
+                autofocus: true,
+                decoration: const InputDecoration(labelText: 'Title'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _descriptionController,
+                maxLines: 3,
+                decoration: const InputDecoration(labelText: 'Description'),
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<Impact?>(
+                initialValue: _impact,
+                decoration: const InputDecoration(labelText: 'Impact'),
+                items: [
+                  const DropdownMenuItem<Impact?>(
+                    child: Text('— not set —'),
+                  ),
+                  for (final level in Impact.values)
+                    DropdownMenuItem<Impact?>(
+                      value: level,
+                      child: Text(_impactLabel(level)),
+                    ),
+                ],
+                onChanged: (v) => setState(() => _impact = v),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(
+                  _deadline == null
+                      ? 'No deadline'
+                      : 'Deadline: ${_formatDate(_deadline!)}',
+                ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_deadline != null)
+                      IconButton(
+                        tooltip: 'Clear deadline',
+                        icon: const Icon(Icons.clear),
+                        onPressed: () => setState(() => _deadline = null),
+                      ),
+                    IconButton(
+                      tooltip: 'Pick deadline',
+                      icon: const Icon(Icons.calendar_today_outlined),
+                      onPressed: _pickDeadline,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(onPressed: _submit, child: const Text('Save')),
+      ],
+    );
+  }
+}
+
+String _impactLabel(Impact level) => switch (level) {
+      Impact.minimal => 'Minimal',
+      Impact.low => 'Low',
+      Impact.medium => 'Medium',
+      Impact.high => 'High',
+      Impact.critical => 'Critical',
+    };
+
+String _formatDate(DateTime dt) =>
+    '${dt.year.toString().padLeft(4, '0')}-'
+    '${dt.month.toString().padLeft(2, '0')}-'
+    '${dt.day.toString().padLeft(2, '0')}';

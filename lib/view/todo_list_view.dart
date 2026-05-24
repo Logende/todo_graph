@@ -134,13 +134,16 @@ class _TodoListViewState extends State<TodoListView> {
             );
           }
 
-          return ListView.separated(
+          return ReorderableListView.builder(
+            buildDefaultDragHandles: false,
             itemCount: hierarchy.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
+            onReorderItem: (oldIndex, newIndex) =>
+                _handleReorder(hierarchy, oldIndex, newIndex),
             itemBuilder: (context, index) {
               final row = hierarchy[index];
               return _NodeTile(
                 key: ValueKey('row-${row.pathId}'),
+                index: index,
                 node: row.node,
                 depth: row.depth,
                 now: now,
@@ -162,6 +165,77 @@ class _TodoListViewState extends State<TodoListView> {
         },
       ),
     );
+  }
+
+  /// Translates a drag in the visible list into one or more
+  /// `setMoreImportantThan` calls. Only drops within the same parent at the
+  /// same depth are accepted; anything else surfaces a snackbar and snaps
+  /// back without state change.
+  ///
+  /// For each sibling the dragged node crossed, we record one importance
+  /// relationship, so the new manual order is preserved next time the list
+  /// is built from scratch.
+  void _handleReorder(
+    List<HierarchicalRow> hierarchy,
+    int oldIndex,
+    int newIndex,
+  ) {
+    // onReorderItem reports newIndex already adjusted for the removed source
+    // row, so no off-by-one correction is needed.
+    if (newIndex == oldIndex) return;
+
+    final moved = hierarchy[oldIndex];
+    final movingUp = newIndex < oldIndex;
+    final crossed = <HierarchicalRow>[];
+    final step = movingUp ? -1 : 1;
+    for (var i = oldIndex + step;
+        movingUp ? i >= newIndex : i <= newIndex;
+        i += step) {
+      crossed.add(hierarchy[i]);
+    }
+
+    final crossedSiblings = crossed
+        .where((r) =>
+            r.depth == moved.depth && _sameParentPath(r.pathId, moved.pathId))
+        .toList(growable: false);
+    final crossedNonSiblings =
+        crossed.length - crossedSiblings.length;
+
+    if (crossedNonSiblings > 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Only siblings under the same parent can be reordered.',
+          ),
+        ),
+      );
+      return;
+    }
+    if (crossedSiblings.isEmpty) return;
+
+    for (final sibling in crossedSiblings) {
+      if (movingUp) {
+        widget.controller.setMoreImportantThan(
+          higherId: moved.node.id,
+          lowerId: sibling.node.id,
+        );
+      } else {
+        widget.controller.setMoreImportantThan(
+          higherId: sibling.node.id,
+          lowerId: moved.node.id,
+        );
+      }
+    }
+  }
+
+  /// True when [pathA] and [pathB] share the same parent path — that is,
+  /// the prefix up to (but not including) the last segment.
+  bool _sameParentPath(String pathA, String pathB) {
+    final aSlash = pathA.lastIndexOf('>');
+    final bSlash = pathB.lastIndexOf('>');
+    if (aSlash != bSlash) return false;
+    if (aSlash < 0) return true; // both are top-level
+    return pathA.substring(0, aSlash) == pathB.substring(0, bSlash);
   }
 
   Future<void> _startQuickAddChild(Node parent) async {
@@ -515,6 +589,7 @@ class _ChipMultiSelect extends StatelessWidget {
 class _NodeTile extends StatelessWidget {
   const _NodeTile({
     super.key,
+    required this.index,
     required this.node,
     required this.depth,
     required this.now,
@@ -524,6 +599,7 @@ class _NodeTile extends StatelessWidget {
     required this.onQuickAddChild,
   });
 
+  final int index;
   final Node node;
   final int depth;
   final DateTime now;
@@ -537,38 +613,72 @@ class _NodeTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final subtitle = _subtitleFor(node, now);
-    return ListTile(
-      contentPadding: EdgeInsets.only(
-        left: 12 + depth * _indentPerLevel,
-        right: 4,
+    return Material(
+      // Material wrapper so the row keeps its background while being dragged
+      // by ReorderableListView (which lifts it into an Overlay).
+      color: Colors.transparent,
+      child: ListTile(
+        contentPadding: EdgeInsets.only(
+          left: 4 + depth * _indentPerLevel,
+          right: 4,
+        ),
+        leading: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ReorderableDragStartListener(
+              index: index,
+              child: Tooltip(
+                message: 'Drag to reorder among siblings',
+                child: Icon(
+                  Icons.drag_indicator,
+                  color: Theme.of(context).colorScheme.outline,
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            _leadingFor(context),
+          ],
+        ),
+        title: Text(node.title),
+        subtitle: subtitle == null ? null : Text(subtitle),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _statusBadge(node.status),
+            IconButton(
+              tooltip: 'Add child',
+              icon: const Icon(Icons.add),
+              visualDensity: VisualDensity.compact,
+              onPressed: onQuickAddChild,
+            ),
+          ],
+        ),
+        onTap: onOpenDetail,
       ),
-      leading: _leadingFor(context),
-      title: Text(node.title),
-      subtitle: subtitle == null ? null : Text(subtitle),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _statusBadge(node.status),
-          IconButton(
-            tooltip: 'Add child',
-            icon: const Icon(Icons.add),
-            visualDensity: VisualDensity.compact,
-            onPressed: onQuickAddChild,
-          ),
-        ],
-      ),
-      onTap: onOpenDetail,
     );
   }
 
   /// Background goals (no completion concept) can never be "checked off", so
-  /// a checkbox would be misleading. They show a goal icon instead;
-  /// completion-bearing nodes get a real checkbox.
+  /// a checkbox would be misleading — they get a goal icon.
+  ///
+  /// Nodes with completion but still-open mandatory children also can't be
+  /// ticked yet — they get a lock icon until their prerequisites close.
   Widget _leadingFor(BuildContext context) {
     if (node.status.completion == null) {
       return Icon(
         Icons.flag_outlined,
         color: Theme.of(context).colorScheme.primary,
+      );
+    }
+    final blockedByChildren =
+        queries.openMandatoryChildrenOf(node.id, now).isNotEmpty;
+    if (blockedByChildren) {
+      return Tooltip(
+        message: 'Mandatory child tasks still open',
+        child: Icon(
+          Icons.lock_outline,
+          color: Theme.of(context).colorScheme.outline,
+        ),
       );
     }
     return Checkbox(

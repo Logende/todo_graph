@@ -1,3 +1,4 @@
+import '../model/contribution.dart';
 import '../model/impact.dart';
 import '../model/lakshya_graph.dart';
 import '../model/node.dart';
@@ -98,6 +99,26 @@ class NodeQueries {
   /// Ids of direct children of [nodeId].
   List<String> directChildrenOf(String nodeId) =>
       List.unmodifiable(_childrenByParent[nodeId] ?? const []);
+
+  /// Ids of direct children that contribute to [nodeId] as mandatory AND are
+  /// still ongoing at [now]. A non-empty result means [nodeId] should not be
+  /// considered completable yet — its prerequisites aren't done.
+  ///
+  /// Background-goal children (no completion concept) are skipped: they
+  /// never close, so blocking on them would mean a parent could never be
+  /// ticked off.
+  Set<String> openMandatoryChildrenOf(String nodeId, DateTime now) {
+    final out = <String>{};
+    for (final edge in graph.edges) {
+      if (edge.parentId != nodeId) continue;
+      if (edge.contribution != Contribution.mandatory) continue;
+      final child = _nodeById[edge.childId];
+      if (child == null) continue;
+      if (child.status.completion == null) continue;
+      if (child.status.isOngoingAt(now)) out.add(child.id);
+    }
+    return out;
+  }
 
   void _walkSelfAndAncestors(String startId, void Function(Node) visit) {
     final visited = <String>{};

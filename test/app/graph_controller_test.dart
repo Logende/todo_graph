@@ -213,6 +213,126 @@ void main() {
       expect(controller.graph.relationships, isEmpty);
     });
 
+    test(
+        'setMoreImportantThan adds a moreImportantThan relationship between '
+        'two siblings', () async {
+      final initial = LakshyaGraph(
+        nodes: [
+          Node(
+            id: 'a',
+            title: 'A',
+            status: NodeStatus.oneTime(),
+            createdAt: DateTime.utc(2026, 5, 24),
+          ),
+          Node(
+            id: 'b',
+            title: 'B',
+            status: NodeStatus.oneTime(),
+            createdAt: DateTime.utc(2026, 5, 24),
+          ),
+        ],
+        edges: const [],
+      );
+      final controller = GraphController(
+        initial: initial,
+        save: (_) async {},
+        idGenerator: SequentialIdGenerator('rel'),
+        clock: () => DateTime.utc(2026, 5, 24),
+      );
+
+      controller.setMoreImportantThan(higherId: 'a', lowerId: 'b');
+
+      expect(controller.graph.relationships, hasLength(1));
+      final added = controller.graph.relationships.single;
+      expect(added.kind, equals(RelationshipKind.moreImportantThan));
+      expect(added.fromNodeId, equals('a'));
+      expect(added.toNodeId, equals('b'));
+    });
+
+    test(
+        'setMoreImportantThan removes the opposite direction when flipping '
+        'the order', () async {
+      final initial = LakshyaGraph(
+        nodes: [
+          Node(
+            id: 'a',
+            title: 'A',
+            status: NodeStatus.oneTime(),
+            createdAt: DateTime.utc(2026, 5, 24),
+          ),
+          Node(
+            id: 'b',
+            title: 'B',
+            status: NodeStatus.oneTime(),
+            createdAt: DateTime.utc(2026, 5, 24),
+          ),
+        ],
+        edges: const [],
+        relationships: const [
+          NodeRelationship(
+            id: 'old',
+            fromNodeId: 'b',
+            toNodeId: 'a',
+            kind: RelationshipKind.moreImportantThan,
+          ),
+        ],
+      );
+      final controller = GraphController(
+        initial: initial,
+        save: (_) async {},
+        idGenerator: SequentialIdGenerator('rel'),
+        clock: () => DateTime.utc(2026, 5, 24),
+      );
+
+      controller.setMoreImportantThan(higherId: 'a', lowerId: 'b');
+
+      expect(controller.graph.relationships, hasLength(1));
+      final after = controller.graph.relationships.single;
+      expect(after.fromNodeId, equals('a'));
+      expect(after.toNodeId, equals('b'));
+    });
+
+    test(
+        'setMoreImportantThan is a no-op when the relationship already '
+        'exists in the requested direction', () async {
+      final initial = LakshyaGraph(
+        nodes: [
+          Node(
+            id: 'a',
+            title: 'A',
+            status: NodeStatus.oneTime(),
+            createdAt: DateTime.utc(2026, 5, 24),
+          ),
+          Node(
+            id: 'b',
+            title: 'B',
+            status: NodeStatus.oneTime(),
+            createdAt: DateTime.utc(2026, 5, 24),
+          ),
+        ],
+        edges: const [],
+        relationships: const [
+          NodeRelationship(
+            id: 'r-keep',
+            fromNodeId: 'a',
+            toNodeId: 'b',
+            kind: RelationshipKind.moreImportantThan,
+          ),
+        ],
+      );
+      final controller = GraphController(
+        initial: initial,
+        save: (_) async {},
+        idGenerator: SequentialIdGenerator('rel'),
+        clock: () => DateTime.utc(2026, 5, 24),
+      );
+
+      controller.setMoreImportantThan(higherId: 'a', lowerId: 'b');
+
+      expect(controller.graph.relationships, hasLength(1));
+      expect(controller.graph.relationships.single.id, equals('r-keep'));
+    });
+
     test('replaceWith swaps the entire graph (used by JSON import)', () async {
       final initial = LakshyaGraph(
         nodes: [

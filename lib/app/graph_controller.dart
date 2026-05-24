@@ -186,6 +186,60 @@ class GraphController extends ChangeNotifier {
     );
   }
 
+  /// Records that [higherId] ranks above [lowerId] in the default ordering.
+  ///
+  /// Idempotent: a no-op when the relationship already exists in the
+  /// requested direction. Cleans up any opposing relationship (the reverse
+  /// `moreImportantThan` or the equivalent `lessImportantThan`) so the new
+  /// statement is the only one between this pair.
+  void setMoreImportantThan({
+    required String higherId,
+    required String lowerId,
+  }) {
+    if (higherId == lowerId) return;
+
+    final conflicts = <NodeRelationship>[];
+    var alreadyPresent = false;
+    for (final r in _graph.relationships) {
+      if (r.kind == RelationshipKind.alternativeTo) continue;
+      if (r.kind == RelationshipKind.moreImportantThan &&
+          r.fromNodeId == higherId &&
+          r.toNodeId == lowerId) {
+        alreadyPresent = true;
+        continue;
+      }
+      final opposingMoreImportant =
+          r.kind == RelationshipKind.moreImportantThan &&
+              r.fromNodeId == lowerId &&
+              r.toNodeId == higherId;
+      final opposingLessImportant =
+          r.kind == RelationshipKind.lessImportantThan &&
+              ((r.fromNodeId == higherId && r.toNodeId == lowerId) ||
+                  (r.fromNodeId == lowerId && r.toNodeId == higherId));
+      if (opposingMoreImportant || opposingLessImportant) {
+        conflicts.add(r);
+      }
+    }
+    if (alreadyPresent && conflicts.isEmpty) return;
+
+    var working = _graph;
+    for (final r in conflicts) {
+      working = mutator.removeRelationship(working, r.id);
+    }
+    if (!alreadyPresent) {
+      working = mutator.addRelationship(
+        working,
+        NodeRelationship(
+          id: idGenerator.next(),
+          fromNodeId: higherId,
+          toNodeId: lowerId,
+          kind: RelationshipKind.moreImportantThan,
+        ),
+      );
+    }
+    _updateAndPersist(working);
+  }
+
   /// Replaces the entire graph (used by "Import from JSON").
   void replaceWith(LakshyaGraph incoming) {
     _updateAndPersist(incoming);
