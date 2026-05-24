@@ -8,6 +8,7 @@ import 'package:lakshya/model/node.dart';
 import 'package:lakshya/model/node_status.dart';
 import 'package:lakshya/repository/graph_repository.dart';
 import 'package:lakshya/repository/local_json_repository.dart';
+import 'package:lakshya/service/schema_validator.dart';
 
 void main() {
   late Directory tempDir;
@@ -93,6 +94,39 @@ void main() {
       await nestedRepo.save(graph);
 
       expect(await nested.exists(), isTrue);
+    });
+
+    test(
+        'load throws SchemaValidationException when the file fails validation '
+        'and a validator is wired in', () async {
+      final schemaText =
+          File('schema/lakshya.schema.json').readAsStringSync();
+      final validatingRepo = LocalJsonRepository(
+        file: graphFile,
+        validator: SchemaValidator.fromString(schemaText),
+      );
+      await graphFile.writeAsString('{"schemaVersion": 1}');
+
+      expect(
+        validatingRepo.load,
+        throwsA(isA<SchemaValidationException>()),
+      );
+    });
+
+    test(
+        'load succeeds when the file is valid and a validator is wired in',
+        () async {
+      final schemaText =
+          File('schema/lakshya.schema.json').readAsStringSync();
+      final validatingRepo = LocalJsonRepository(
+        file: graphFile,
+        validator: SchemaValidator.fromString(schemaText),
+      );
+      const graph = LakshyaGraph.empty();
+      await validatingRepo.save(graph);
+
+      final loaded = await validatingRepo.load();
+      expect(loaded, equals(graph));
     });
 
     test('save then save again overwrites instead of appending', () async {

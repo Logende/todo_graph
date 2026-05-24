@@ -38,6 +38,9 @@ dependencies:
   # Value-equality base class used by all model classes.
   equatable: ^2.0.5
 
+  # Runtime validator for schema/lakshya.schema.json on data load.
+  json_schema: ^5.2.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -60,10 +63,10 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  # To add assets to your application, add an assets section, like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
-  #   - images/a_dot_ham.jpeg
+  assets:
+    # JSON Schema for the persisted graph. Loaded at runtime via rootBundle
+    # and used by SchemaValidator to gate file load and JSON import.
+    - schema/lakshya.schema.json
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

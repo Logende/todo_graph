@@ -49,8 +49,9 @@ These rules apply to every change in this repo:
 3. **Default view.** Graph canvas with pan, zoom, and animated transitions. Filter sidebar. Node inspector. Add and edit modal with a full-graph node picker for parent and dependency selection.
 4. **Dashboard tiles.** A launcher screen of large tiles, one per saved filter preset. Tap to enter the graph view pre-filtered. Add, edit, reorder presets.
 5. **Reminders and attachments.** Local notifications based on a global lead time before deadlines, re-open notifications for periodic tasks, URL and geo and time-trigger attachments, OS permission handling.
-6. **Polish.** Shiva-themed color palette, SVG logo (trident or yantra geometry), PWA manifest and service worker for install-to-home-screen, responsive breakpoints for phone, tablet, and desktop.
-7. **Deferred.** Optional multi-device sync via cloud folder or a minimal backend. Not in scope for the initial build.
+6. **Export / import.** "Export to JSON" button (writes the current graph to a user-chosen file) and "Import from JSON" button (reads a user-chosen file and runs it through `SchemaValidator.validateOrThrow` before replacing the in-memory graph). Imports must surface validation errors clearly in the UI rather than silently dropping fields.
+7. **Polish.** Shiva-themed color palette, SVG logo (trident or yantra geometry), PWA manifest and service worker for install-to-home-screen, responsive breakpoints for phone, tablet, and desktop.
+8. **Deferred.** Optional multi-device sync via cloud folder or a minimal backend. Not in scope for the initial build.
 
 ## Repository layout
 

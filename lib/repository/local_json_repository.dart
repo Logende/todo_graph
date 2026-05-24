@@ -2,17 +2,21 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../model/lakshya_graph.dart';
+import '../service/schema_validator.dart';
 import 'graph_repository.dart';
 
 /// Persists the Lakshya graph to a single JSON file on the local filesystem.
 ///
 /// The target file is injected so the same implementation can be reused in
 /// tests (temp directory) and in the app (`path_provider`-resolved app data
-/// directory).
+/// directory). An optional [validator] is run against the decoded JSON on
+/// every [load] so external or corrupted files surface a useful error
+/// instead of a generic parse crash.
 class LocalJsonRepository implements GraphRepository {
-  LocalJsonRepository({required this.file});
+  LocalJsonRepository({required this.file, this.validator});
 
   final File file;
+  final SchemaValidator? validator;
 
   static const _jsonEncoder = JsonEncoder.withIndent('  ');
 
@@ -26,6 +30,7 @@ class LocalJsonRepository implements GraphRepository {
       return null;
     }
     final decoded = json.decode(raw) as Map<String, dynamic>;
+    validator?.validateOrThrow(decoded);
     return LakshyaGraph.fromJson(decoded);
   }
 
