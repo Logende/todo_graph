@@ -125,16 +125,27 @@ class _NodeTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final subtitle = _subtitleFor(node, now);
-    final isOngoing = node.status.isOngoingAt(now);
-    final hasCompletion = node.status.completion != null;
     return ListTile(
-      leading: Checkbox(
-        value: !isOngoing,
-        onChanged: hasCompletion ? (_) => onToggleComplete() : null,
-      ),
+      leading: _leadingFor(context),
       title: Text(node.title),
       subtitle: subtitle == null ? null : Text(subtitle),
       trailing: _statusBadge(node.status),
+    );
+  }
+
+  /// Background goals (no completion concept) can never be "checked off", so
+  /// a checkbox would be misleading. They show a goal icon instead;
+  /// completion-bearing nodes get a real checkbox.
+  Widget _leadingFor(BuildContext context) {
+    if (node.status.completion == null) {
+      return Icon(
+        Icons.flag_outlined,
+        color: Theme.of(context).colorScheme.primary,
+      );
+    }
+    return Checkbox(
+      value: !node.status.isOngoingAt(now),
+      onChanged: (_) => onToggleComplete(),
     );
   }
 

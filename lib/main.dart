@@ -6,7 +6,7 @@ import 'app/graph_controller.dart';
 import 'app/lakshya_app.dart';
 import 'model/lakshya_graph.dart';
 import 'repository/shared_preferences_graph_repository.dart';
-import 'service/graph_initializer.dart';
+import 'service/asset_seed_loader.dart';
 import 'service/id_generator.dart';
 import 'service/schema_validator.dart';
 
@@ -19,15 +19,14 @@ Future<void> main() async {
     preferences: preferences,
     validator: validator,
   );
-  final idGenerator = UuidV4IdGenerator();
   final initialGraph = await _loadOrBootstrapGraph(
     repository: repository,
-    idGenerator: idGenerator,
+    validator: validator,
   );
   final controller = GraphController(
     initial: initialGraph,
     save: repository.save,
-    idGenerator: idGenerator,
+    idGenerator: UuidV4IdGenerator(),
     clock: DateTime.now,
   );
 
@@ -42,19 +41,22 @@ Future<SchemaValidator> _loadSchemaValidator() async {
 
 Future<LakshyaGraph> _loadOrBootstrapGraph({
   required SharedPreferencesGraphRepository repository,
-  required IdGenerator idGenerator,
+  required SchemaValidator validator,
 }) async {
-  final initializer = GraphInitializer(
-    idGenerator: idGenerator,
-    clock: DateTime.now,
-  );
   try {
     final loaded = await repository.load();
     if (loaded != null) return loaded;
   } on SchemaValidationException {
-    // Pre-release: no migration path. Fall through to a fresh bootstrap.
+    // Pre-release: no migration path. Fall through to a fresh seed.
   }
-  final fresh = initializer.emptyGraph();
-  await repository.save(fresh);
-  return fresh;
+  final seed = await _loadSeedFromAsset(validator: validator);
+  await repository.save(seed);
+  return seed;
+}
+
+Future<LakshyaGraph> _loadSeedFromAsset({
+  required SchemaValidator validator,
+}) async {
+  final seedJson = await rootBundle.loadString('assets/example_seed.json');
+  return AssetSeedLoader(validator: validator).parse(seedJson);
 }

@@ -75,6 +75,9 @@ flutter:
     # JSON Schema for the persisted graph. Loaded at runtime via rootBundle
     # and used by SchemaValidator to gate file load and JSON import.
     - schema/lakshya.schema.json
+    # Default graph loaded on first launch (and via "Reset to example"). Edit
+    # in place to extend the seed without touching Dart code.
+    - assets/example_seed.json
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

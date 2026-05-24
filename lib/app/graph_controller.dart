@@ -7,7 +7,7 @@ import '../model/edge.dart';
 import '../model/lakshya_graph.dart';
 import '../model/node.dart';
 import '../model/node_status.dart';
-import '../service/graph_initializer.dart' show Clock;
+import '../service/clock.dart';
 import '../service/graph_mutator.dart';
 import '../service/id_generator.dart';
 

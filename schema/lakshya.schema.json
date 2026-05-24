@@ -36,7 +36,7 @@
       "required": ["id", "title", "status", "createdAt"],
       "additionalProperties": false,
       "properties": {
-        "id": { "type": "string", "format": "uuid" },
+        "id": { "type": "string", "minLength": 1 },
         "title": { "type": "string", "minLength": 1 },
         "description": { "type": "string" },
         "status": { "$ref": "#/$defs/NodeStatus" },
@@ -188,15 +188,13 @@
       "additionalProperties": false,
       "description": "Directed contribution from a child node to a parent goal. A node can have many parents; the same child appears in multiple edges.",
       "properties": {
-        "id": { "type": "string", "format": "uuid" },
+        "id": { "type": "string", "minLength": 1 },
         "childId": {
           "type": "string",
-          "format": "uuid",
           "description": "The lower-level node that contributes upward."
         },
         "parentId": {
           "type": "string",
-          "format": "uuid",
           "description": "The higher-level goal being contributed to."
         },
         "contribution": {
@@ -212,8 +210,8 @@
       "additionalProperties": false,
       "description": "Hard manual override declaring one node ranks above another, regardless of priority/impact scores.",
       "properties": {
-        "higherId": { "type": "string", "format": "uuid" },
-        "lowerId": { "type": "string", "format": "uuid" }
+        "higherId": { "type": "string", "minLength": 1 },
+        "lowerId": { "type": "string", "minLength": 1 }
       }
     },
     "FilterPreset": {
@@ -222,7 +220,7 @@
       "additionalProperties": false,
       "description": "Dashboard tile. Tapping the tile opens a list or graph view pre-filtered by this filter.",
       "properties": {
-        "id": { "type": "string", "format": "uuid" },
+        "id": { "type": "string", "minLength": 1 },
         "title": { "type": "string", "minLength": 1 },
         "iconName": {
           "type": "string",
@@ -242,7 +240,7 @@
       "properties": {
         "ancestorGoalIds": {
           "type": "array",
-          "items": { "type": "string", "format": "uuid" },
+          "items": { "type": "string", "minLength": 1 },
           "description": "Keep only nodes that are descendants of at least one of these goals."
         },
         "contribution": {
@@ -295,7 +293,6 @@
         },
         "rootNodeId": {
           "type": "string",
-          "format": "uuid",
           "description": "ID of the 'all goals achieved' top-level node. The graph engine treats this as the universal ancestor when computing descendant filters with no ancestorGoalIds set."
         }
       }
