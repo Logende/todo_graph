@@ -44,8 +44,10 @@ dependencies:
   # Generates UUIDs for new node and edge ids.
   uuid: ^4.5.3
 
-  # Resolves the per-platform app documents directory for the JSON file.
-  path_provider: ^2.1.5
+  # Cross-platform key/value storage for the persisted graph. Backs the
+  # SharedPreferencesGraphRepository so the same code runs on macOS, iOS,
+  # Android, Windows, Linux, and the web (localStorage).
+  shared_preferences: ^2.5.5
 
 dev_dependencies:
   flutter_test:

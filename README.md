@@ -62,7 +62,7 @@ lakshya/
     lakshya.schema.json     # documented wire format, used for runtime validation
   lib/
     model/                  # hand-written sealed-class data model
-    repository/             # GraphRepository interface + LocalJsonRepository
+    repository/             # GraphRepository interface + SharedPreferencesGraphRepository
     service/                # graph engine, recurrence, filters, schema validation
     view/                   # top-level screens (graph view, dashboard, settings)
     widgets/                # reusable widgets (node picker, filter sidebar, etc.)
@@ -100,7 +100,7 @@ Project started 2026-05-24.
 
 **Done so far (still pre-first-commit on the autonomous run):**
 - Phase 0 (setup): Flutter 3.44.0 / Dart 3.12.0 scaffolded with `flutter create`, repository layout per the spec above, git initialized.
-- Phase 1 (data model): hand-written sealed-class model under `lib/model/`, runtime schema validation via `SchemaValidator`, `GraphRepository` interface + `LocalJsonRepository` with file persistence, bundled schema as a Flutter asset.
+- Phase 1 (data model): hand-written sealed-class model under `lib/model/`, runtime schema validation via `SchemaValidator`, `GraphRepository` interface + `SharedPreferencesGraphRepository` with file persistence, bundled schema as a Flutter asset.
 - Phase 2 (graph engine): `GraphTraversal` (descendants/ancestors/leaf/cycle), `FilterEvaluator` (composes ancestor/contribution/status/ongoing/leaf/free-text), `NodeOrdering` (deadline → priority → impact → createdAt with topological priority-pin overrides), `GraphMutator` (DAG-safe add/update/delete of nodes and edges), `GraphInitializer` (bootstrap "All goals achieved" root).
 - Phase 3 (subset — Views 2 & 3): `DashboardView` (tile launcher with built-in "All ongoing" / "All goals" tiles + user filter presets), `TodoListView` (filtered ordered list with completion checkboxes), `AddNodeView` (form covering all five status kinds and contribution kind), `GraphController` (ChangeNotifier wiring views to model + persistence). Graph-canvas view (View 1) deferred.
 - Phase 6 (export/import): `GraphIo.exportToJson` and `GraphIo.importFromJson` with mandatory schema validation on import. Wired into `SettingsView` via the clipboard (file-picker plumbing deferred).
