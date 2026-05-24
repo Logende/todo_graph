@@ -173,40 +173,143 @@ class _DetailScaffold extends StatelessWidget {
   }
 
   Future<void> _startAddRelationship(BuildContext context) async {
-    final kind = await _pickRelationshipKind(context);
-    if (kind == null || !context.mounted) return;
+    final choice = await _pickLinkKind(context);
+    if (choice == null || !context.mounted) return;
 
     final target = await showNodePicker(
       context: context,
       nodes: controller.graph.nodes,
       excludeIds: {node.id},
-      title: 'Target of $node.title – ${_kindLabel(kind)}',
+      title: '${_linkLabel(choice)} — pick the other node',
     );
     if (target == null) return;
 
-    controller.addRelationship(
-      fromNodeId: node.id,
-      toNodeId: target.id,
-      kind: kind,
-    );
+    try {
+      switch (choice) {
+        case _AddLinkChoice.dependsOn:
+          // "This depends on target" → target is a (mandatory) prerequisite
+          // child of this node.
+          controller.addEdge(childId: target.id, parentId: node.id);
+        case _AddLinkChoice.dependentOf:
+          // "This is a dependent of target" → this node is a (mandatory)
+          // child of target. Adds an extra parent for the current node.
+          controller.addEdge(childId: node.id, parentId: target.id);
+        case _AddLinkChoice.moreImportantThan:
+          controller.addRelationship(
+            fromNodeId: node.id,
+            toNodeId: target.id,
+            kind: RelationshipKind.moreImportantThan,
+          );
+        case _AddLinkChoice.lessImportantThan:
+          controller.addRelationship(
+            fromNodeId: node.id,
+            toNodeId: target.id,
+            kind: RelationshipKind.lessImportantThan,
+          );
+        case _AddLinkChoice.alternativeTo:
+          controller.addRelationship(
+            fromNodeId: node.id,
+            toNodeId: target.id,
+            kind: RelationshipKind.alternativeTo,
+          );
+      }
+    } on StateError catch (e) {
+      if (!context.mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Could not add link'),
+          content: Text(e.message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
+    // ArgumentError from the mutator (unknown id / duplicate id) is treated
+    // as a programmer error and lets the framework surface it.
+    // Contribution defaults to mandatory; future iteration can offer
+    // 'helpful' as a second-step choice for the depends-on edges.
   }
 
-  Future<RelationshipKind?> _pickRelationshipKind(BuildContext context) {
-    return showDialog<RelationshipKind>(
+  Future<_AddLinkChoice?> _pickLinkKind(BuildContext context) {
+    return showDialog<_AddLinkChoice>(
       context: context,
       builder: (_) => SimpleDialog(
-        title: const Text('Relationship kind'),
+        title: const Text('Link to another node'),
         children: [
-          for (final kind in RelationshipKind.values)
+          for (final choice in _AddLinkChoice.values)
             SimpleDialogOption(
-              onPressed: () => Navigator.of(context).pop(kind),
-              child: Text(_kindLabel(kind)),
+              onPressed: () => Navigator.of(context).pop(choice),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    Icon(_linkIcon(choice)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(_linkLabel(choice)),
+                          Text(
+                            _linkExplanation(choice),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
         ],
       ),
     );
   }
 }
+
+/// Choices in the "Add link" dialog. The first two map to structural edges
+/// (parent/child), the rest to NodeRelationships.
+enum _AddLinkChoice {
+  dependsOn,
+  dependentOf,
+  moreImportantThan,
+  lessImportantThan,
+  alternativeTo,
+}
+
+String _linkLabel(_AddLinkChoice choice) => switch (choice) {
+      _AddLinkChoice.dependsOn => 'Depends on…',
+      _AddLinkChoice.dependentOf => 'Is a dependent of…',
+      _AddLinkChoice.moreImportantThan => 'More important than…',
+      _AddLinkChoice.lessImportantThan => 'Less important than…',
+      _AddLinkChoice.alternativeTo => 'Alternative to…',
+    };
+
+String _linkExplanation(_AddLinkChoice choice) => switch (choice) {
+      _AddLinkChoice.dependsOn =>
+        'The other node becomes a prerequisite — added as a child of this one.',
+      _AddLinkChoice.dependentOf =>
+        'This node becomes a child of the other — that other node depends on this.',
+      _AddLinkChoice.moreImportantThan =>
+        'Ranks this node above the other in the default ordering.',
+      _AddLinkChoice.lessImportantThan =>
+        'Ranks this node below the other in the default ordering.',
+      _AddLinkChoice.alternativeTo =>
+        'Marks them as equivalent — closing one closes the other.',
+    };
+
+IconData _linkIcon(_AddLinkChoice choice) => switch (choice) {
+      _AddLinkChoice.dependsOn => Icons.subdirectory_arrow_right,
+      _AddLinkChoice.dependentOf => Icons.subdirectory_arrow_left,
+      _AddLinkChoice.moreImportantThan => Icons.arrow_upward,
+      _AddLinkChoice.lessImportantThan => Icons.arrow_downward,
+      _AddLinkChoice.alternativeTo => Icons.swap_horiz,
+    };
 
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader({required this.title, this.trailing});
@@ -334,12 +437,6 @@ class _RelationshipTile extends StatelessWidget {
     );
   }
 }
-
-String _kindLabel(RelationshipKind kind) => switch (kind) {
-      RelationshipKind.moreImportantThan => 'More important than',
-      RelationshipKind.lessImportantThan => 'Less important than',
-      RelationshipKind.alternativeTo => 'Alternative to',
-    };
 
 IconData _iconFor(RelationshipKind kind) => switch (kind) {
       RelationshipKind.moreImportantThan => Icons.arrow_upward,
