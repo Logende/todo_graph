@@ -51,6 +51,36 @@ void main() {
       expect(w.isActiveAt(DateTime.utc(2026, 6, 2)), isFalse);
     });
 
+    test('bounded constructor rejects an end-before-start window', () {
+      expect(
+        () => BoundedActive(
+          activeFrom: DateTime.utc(2026, 6, 1),
+          activeUntil: DateTime.utc(2026, 5, 1),
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('bounded allows start == end (instantaneous window)', () {
+      final instant = DateTime.utc(2026, 5, 24, 12);
+      expect(
+        () => BoundedActive(activeFrom: instant, activeUntil: instant),
+        returnsNormally,
+      );
+    });
+
+    test('bounded.fromJson surfaces an invalid window as FormatException',
+        () {
+      expect(
+        () => ActivationWindow.fromJson({
+          'kind': 'bounded',
+          'activeFrom': '2026-06-01T00:00:00.000Z',
+          'activeUntil': '2026-05-01T00:00:00.000Z',
+        }),
+        throwsFormatException,
+      );
+    });
+
     test('both variants round-trip through json', () {
       final variants = <ActivationWindow>[
         const AlwaysActive(),

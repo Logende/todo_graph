@@ -48,10 +48,17 @@ final class AlwaysActive extends ActivationWindow {
 
 /// Live only between [activeFrom] and [activeUntil] inclusive.
 final class BoundedActive extends ActivationWindow {
-  const BoundedActive({
+  BoundedActive({
     required this.activeFrom,
     required this.activeUntil,
-  });
+  }) {
+    if (activeUntil.isBefore(activeFrom)) {
+      throw ArgumentError(
+        'activeUntil ($activeUntil) must not be before activeFrom '
+        '($activeFrom)',
+      );
+    }
+  }
 
   final DateTime activeFrom;
   final DateTime activeUntil;
@@ -71,10 +78,13 @@ final class BoundedActive extends ActivationWindow {
       };
 
   factory BoundedActive.fromJson(Map<String, dynamic> json) {
-    return BoundedActive(
-      activeFrom: DateTime.parse(json['activeFrom'] as String),
-      activeUntil: DateTime.parse(json['activeUntil'] as String),
-    );
+    final activeFrom = DateTime.parse(json['activeFrom'] as String);
+    final activeUntil = DateTime.parse(json['activeUntil'] as String);
+    try {
+      return BoundedActive(activeFrom: activeFrom, activeUntil: activeUntil);
+    } on ArgumentError catch (e) {
+      throw FormatException(e.message.toString());
+    }
   }
 
   @override

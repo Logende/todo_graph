@@ -93,14 +93,19 @@ class _AddNodeViewState extends State<AddNodeView> {
   }
 
   ActivationWindow _buildActivation() {
-    return switch (_activation) {
-      _ActivationChoice.alwaysActive => const AlwaysActive(),
-      _ActivationChoice.bounded => BoundedActive(
-          activeFrom: _activeFrom ?? widget.controller.clock(),
-          activeUntil: _activeUntil ??
-              widget.controller.clock().add(const Duration(days: 30)),
-        ),
-    };
+    switch (_activation) {
+      case _ActivationChoice.alwaysActive:
+        return const AlwaysActive();
+      case _ActivationChoice.bounded:
+        final from = _activeFrom ?? widget.controller.clock();
+        final defaultUntil = from.add(const Duration(days: 30));
+        final picked = _activeUntil ?? defaultUntil;
+        // Defensive clamp — the UI prevents picking an earlier "until", but
+        // if anything slips through (e.g. clearing then re-entering bounded
+        // mode) we'd rather snap the window than throw at submit time.
+        final until = picked.isBefore(from) ? from : picked;
+        return BoundedActive(activeFrom: from, activeUntil: until);
+    }
   }
 
   Completion? _buildCompletion() {
@@ -223,7 +228,14 @@ class _AddNodeViewState extends State<AddNodeView> {
               _DatePickerRow(
                 label: 'Active from',
                 value: _activeFrom,
-                onPick: (d) => setState(() => _activeFrom = d),
+                onPick: (d) => setState(() {
+                  _activeFrom = d;
+                  // Keep the window valid: pull "until" forward if the new
+                  // "from" landed past it.
+                  if (_activeUntil != null && _activeUntil!.isBefore(d)) {
+                    _activeUntil = d;
+                  }
+                }),
                 contextClock: widget.controller.clock,
               ),
               const SizedBox(height: 8),
@@ -232,6 +244,7 @@ class _AddNodeViewState extends State<AddNodeView> {
                 value: _activeUntil,
                 onPick: (d) => setState(() => _activeUntil = d),
                 contextClock: widget.controller.clock,
+                minimumDate: _activeFrom,
               ),
             ],
             const SizedBox(height: 24),
@@ -338,6 +351,7 @@ class _DatePickerRow extends StatelessWidget {
     required this.onPick,
     required this.contextClock,
     this.onClear,
+    this.minimumDate,
   });
 
   final String label;
@@ -345,6 +359,17 @@ class _DatePickerRow extends StatelessWidget {
   final ValueChanged<DateTime> onPick;
   final VoidCallback? onClear;
   final DateTime Function() contextClock;
+
+  /// When provided, the picker rejects dates earlier than this — used to
+  /// keep "Active until" >= "Active from".
+  final DateTime? minimumDate;
+
+  DateTime get _firstDate => minimumDate ?? DateTime(2020);
+
+  DateTime get _initialDate {
+    final candidate = value ?? contextClock();
+    return candidate.isBefore(_firstDate) ? _firstDate : candidate;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -364,8 +389,8 @@ class _DatePickerRow extends StatelessWidget {
             onPressed: () async {
               final picked = await showDatePicker(
                 context: context,
-                initialDate: value ?? contextClock(),
-                firstDate: DateTime(2020),
+                initialDate: _initialDate,
+                firstDate: _firstDate,
                 lastDate: DateTime(2100),
               );
               if (picked != null) onPick(picked);
