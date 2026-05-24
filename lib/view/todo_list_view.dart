@@ -10,9 +10,10 @@ import '../model/node.dart';
 import '../model/node_status.dart';
 import '../model/settings.dart';
 import '../service/filter_evaluator.dart';
-import '../service/node_ordering.dart';
+import '../service/hierarchical_ordering.dart';
 import 'add_node_view.dart';
 import 'node_detail_view.dart';
+import 'quick_add_child_dialog.dart';
 
 /// View 2 from the spec: a flat, filtered, ordered list of tasks with
 /// checkboxes for completion.
@@ -94,15 +95,16 @@ class _TodoListViewState extends State<TodoListView> {
           final urgentWindowDays =
               widget.controller.graph.settings?.effectiveUrgentWindowDays ??
                   kDefaultUrgentWindowDays;
-          final ordering =
-              NodeOrdering(urgentWindow: Duration(days: urgentWindowDays));
-          final ordered = ordering.defaultOrder(
-            filtered,
-            now: now,
+          final hierarchy = HierarchicalOrdering(
+            urgentWindow: Duration(days: urgentWindowDays),
+          ).arrange(
+            nodes: filtered,
+            edges: widget.controller.graph.edges,
             relationships: widget.controller.graph.relationships,
+            now: now,
           );
 
-          if (ordered.isEmpty) {
+          if (hierarchy.isEmpty) {
             return const Center(
               child: Padding(
                 padding: EdgeInsets.all(24),
@@ -115,29 +117,58 @@ class _TodoListViewState extends State<TodoListView> {
           }
 
           return ListView.separated(
-            itemCount: ordered.length,
+            itemCount: hierarchy.length,
             separatorBuilder: (_, _) => const Divider(height: 1),
             itemBuilder: (context, index) {
-              final node = ordered[index];
+              final row = hierarchy[index];
               return _NodeTile(
-                node: node,
+                key: ValueKey('row-${row.pathId}'),
+                node: row.node,
+                depth: row.depth,
                 now: now,
                 onToggleComplete: () =>
-                    widget.controller.markCompleted(node.id),
+                    widget.controller.markCompleted(row.node.id),
                 onOpenDetail: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (_) => NodeDetailView(
                       controller: widget.controller,
-                      nodeId: node.id,
+                      nodeId: row.node.id,
                     ),
                   ),
                 ),
+                onQuickAddChild: () => _startQuickAddChild(row.node),
               );
             },
           );
         },
       ),
     );
+  }
+
+  Future<void> _startQuickAddChild(Node parent) async {
+    final result = await showQuickAddChild(
+      context: context,
+      parentTitle: parent.title,
+    );
+    if (result == null) return;
+    if (result is QuickAddSubmission) {
+      widget.controller.addChildNode(
+        title: result.title,
+        parentId: parent.id,
+        status: result.status,
+      );
+      return;
+    }
+    if (result is QuickAddEscalation && mounted) {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => AddNodeView(
+            controller: widget.controller,
+            defaultParentId: parent.id,
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _saveAsTile() async {
@@ -414,25 +445,47 @@ class _ChipMultiSelect extends StatelessWidget {
 
 class _NodeTile extends StatelessWidget {
   const _NodeTile({
+    super.key,
     required this.node,
+    required this.depth,
     required this.now,
     required this.onToggleComplete,
     required this.onOpenDetail,
+    required this.onQuickAddChild,
   });
 
   final Node node;
+  final int depth;
   final DateTime now;
   final VoidCallback onToggleComplete;
   final VoidCallback onOpenDetail;
+  final VoidCallback onQuickAddChild;
+
+  static const double _indentPerLevel = 18;
 
   @override
   Widget build(BuildContext context) {
     final subtitle = _subtitleFor(node, now);
     return ListTile(
+      contentPadding: EdgeInsets.only(
+        left: 12 + depth * _indentPerLevel,
+        right: 4,
+      ),
       leading: _leadingFor(context),
       title: Text(node.title),
       subtitle: subtitle == null ? null : Text(subtitle),
-      trailing: _statusBadge(node.status),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _statusBadge(node.status),
+          IconButton(
+            tooltip: 'Add child',
+            icon: const Icon(Icons.add),
+            visualDensity: VisualDensity.compact,
+            onPressed: onQuickAddChild,
+          ),
+        ],
+      ),
       onTap: onOpenDetail,
     );
   }
