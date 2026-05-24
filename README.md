@@ -26,8 +26,9 @@ When any UI flow asks the user to pick a node (for adding a new parent, a depend
 ## Tech stack
 
 - Flutter and Dart for the UI. One codebase for web, iOS, Android, and macOS desktop.
-- Local-only storage. Data classes are generated from a JSON Schema via MetaConfigurator and its QuickType integration. The graph is persisted as a JSON file in the app data directory.
-- No backend. The repository layer is designed behind an interface so cloud sync can be added later without touching the rest of the app.
+- Local-only storage. The graph is persisted as a single pretty-printed JSON file in the app data directory.
+- Hand-written, sealed-class data model in `lib/model/`. The JSON Schema in `schema/lakshya.schema.json` is the documented source of truth for the wire format and is used for runtime validation of on-disk data; it does not generate code.
+- No backend. The repository layer is designed behind an interface (`GraphRepository`) so cloud sync can be added later without touching the rest of the app.
 
 ## Architecture and quality principles
 
@@ -38,12 +39,12 @@ These rules apply to every change in this repo:
 3. **Readable names over short names.** Prefer `recurrenceIntervalSinceLastCompletion` over `recur`, and `findLeavesUnder(goal)` over `f(g)`. No cryptic abbreviations.
 4. **Dependency injection over globals.** Services and repositories are passed in, not reached for.
 5. **Small, single-purpose functions.** If a function needs a paragraph to explain, split it.
-6. **Schema-first data model.** Data shape changes start in the JSON Schema, then flow into regenerated Dart classes, then into the rest of the code.
+6. **Schema-first data model.** Data shape changes start in `schema/lakshya.schema.json` (documentation + runtime validation), and are then reflected by hand in the corresponding Dart classes in `lib/model/` with matching tests.
 
 ## Build phases
 
 0. **Setup.** Install Flutter, run `flutter create`, init git, lay out the base directory structure.
-1. **Data model.** Write the JSON Schema, generate Dart model classes via MetaConfigurator and QuickType, build the repository and JSON file persistence with tests.
+1. **Data model.** Write the JSON Schema as the documented wire format, hand-write matching Dart classes (sealed unions for `NodeStatus` and `Attachment`), build the repository and JSON file persistence, and run loaded JSON through schema validation. All with TDD.
 2. **Graph engine.** DAG traversal with multi-parent support, leaf detection, filter predicates, recurrence resolver, default ordering with manual priority overrides, computed "ongoing tasks" view.
 3. **Default view.** Graph canvas with pan, zoom, and animated transitions. Filter sidebar. Node inspector. Add and edit modal with a full-graph node picker for parent and dependency selection.
 4. **Dashboard tiles.** A launcher screen of large tiles, one per saved filter preset. Tap to enter the graph view pre-filtered. Add, edit, reorder presets.
@@ -56,11 +57,11 @@ These rules apply to every change in this repo:
 ```
 lakshya/
   schema/
-    lakshya.schema.json     # single source of truth for the data model
+    lakshya.schema.json     # documented wire format, used for runtime validation
   lib/
-    model/                  # data classes (generated + hand-written value objects)
+    model/                  # hand-written sealed-class data model
     repository/             # GraphRepository interface + LocalJsonRepository
-    service/                # graph engine, recurrence, filters
+    service/                # graph engine, recurrence, filters, schema validation
     view/                   # top-level screens (graph view, dashboard, settings)
     widgets/                # reusable widgets (node picker, filter sidebar, etc.)
     theme/                  # colors, typography, animations
@@ -84,13 +85,12 @@ flutter run -d macos         # desktop build
 flutter run -d <device-id>   # iOS or Android (after `flutter devices`)
 ```
 
-To regenerate model classes from the schema:
+To change the data model:
 
-1. Open `schema/lakshya.schema.json`.
-2. Paste into [MetaConfigurator](https://metaconfigurator.github.io/meta-configurator/).
-3. Use the QuickType integration to generate Dart classes.
-4. Replace files under `lib/model/generated/`.
-5. Run the tests.
+1. Update `schema/lakshya.schema.json` first (the documented wire format and the runtime validator's source of truth).
+2. Reflect the change by hand in the matching class under `lib/model/`, keeping naming idiomatic (`mandatory`, not `MANDATORY`; `Node`, not `NodeElement`).
+3. Update or add tests under `test/model/` covering both `fromJson`/`toJson` and any new variant logic.
+4. Run `flutter analyze` and `flutter test`.
 
 ## Status
 

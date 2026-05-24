@@ -1,0 +1,93 @@
+import 'package:equatable/equatable.dart';
+
+import 'edge.dart';
+import 'filter_preset.dart';
+import 'node.dart';
+import 'priority_pin.dart';
+import 'settings.dart';
+
+/// Current on-disk schema version. Bump on breaking changes and add a
+/// migration in the repository layer.
+const int kCurrentSchemaVersion = 1;
+
+/// Root document for the Lakshya graph. The full graph (every node, every
+/// edge, every manual priority pin, every dashboard filter preset, plus
+/// global settings) is persisted as a single JSON document.
+class LakshyaGraph extends Equatable {
+  const LakshyaGraph({
+    required this.nodes,
+    required this.edges,
+    this.priorityPins = const [],
+    this.filterPresets = const [],
+    this.settings,
+    this.schemaVersion = kCurrentSchemaVersion,
+  });
+
+  /// An empty graph at the current schema version.
+  const LakshyaGraph.empty()
+      : nodes = const [],
+        edges = const [],
+        priorityPins = const [],
+        filterPresets = const [],
+        settings = null,
+        schemaVersion = kCurrentSchemaVersion;
+
+  final List<Node> nodes;
+  final List<Edge> edges;
+  final List<PriorityPin> priorityPins;
+  final List<FilterPreset> filterPresets;
+  final Settings? settings;
+  final int schemaVersion;
+
+  Map<String, dynamic> toJson() => {
+        'schemaVersion': schemaVersion,
+        'nodes': nodes.map((n) => n.toJson()).toList(),
+        'edges': edges.map((e) => e.toJson()).toList(),
+        if (priorityPins.isNotEmpty)
+          'priorityPins': priorityPins.map((p) => p.toJson()).toList(),
+        if (filterPresets.isNotEmpty)
+          'filterPresets': filterPresets.map((p) => p.toJson()).toList(),
+        if (settings != null) 'settings': settings!.toJson(),
+      };
+
+  factory LakshyaGraph.fromJson(Map<String, dynamic> json) {
+    final pinsRaw = json['priorityPins'] as List?;
+    final presetsRaw = json['filterPresets'] as List?;
+    final settingsRaw = json['settings'] as Map<String, dynamic>?;
+    return LakshyaGraph(
+      schemaVersion:
+          (json['schemaVersion'] as int?) ?? kCurrentSchemaVersion,
+      nodes: (json['nodes'] as List)
+          .cast<Map<String, dynamic>>()
+          .map(Node.fromJson)
+          .toList(),
+      edges: (json['edges'] as List)
+          .cast<Map<String, dynamic>>()
+          .map(Edge.fromJson)
+          .toList(),
+      priorityPins: pinsRaw == null
+          ? const []
+          : pinsRaw
+              .cast<Map<String, dynamic>>()
+              .map(PriorityPin.fromJson)
+              .toList(),
+      filterPresets: presetsRaw == null
+          ? const []
+          : presetsRaw
+              .cast<Map<String, dynamic>>()
+              .map(FilterPreset.fromJson)
+              .toList(),
+      settings: settingsRaw == null ? null : Settings.fromJson(settingsRaw),
+    );
+  }
+
+  @override
+  List<Object?> get props => [
+        schemaVersion,
+        nodes,
+        edges,
+        priorityPins,
+        filterPresets,
+        settings,
+      ];
+}

@@ -1,4 +1,4 @@
-import '../model/generated/lakshya_graph.dart';
+import '../model/lakshya_graph.dart';
 
 /// Persistence interface for the Lakshya graph.
 ///

@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import '../model/generated/lakshya_graph.dart';
+import '../model/lakshya_graph.dart';
 import 'graph_repository.dart';
 
 /// Persists the Lakshya graph to a single JSON file on the local filesystem.
