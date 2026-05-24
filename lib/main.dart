@@ -1,10 +1,16 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app/graph_controller.dart';
 import 'app/lakshya_app.dart';
 import 'model/lakshya_graph.dart';
+import 'repository/graph_repository.dart';
+import 'repository/local_file_graph_repository.dart';
 import 'repository/shared_preferences_graph_repository.dart';
 import 'service/asset_seed_loader.dart';
 import 'service/id_generator.dart';
@@ -14,11 +20,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   final validator = await _loadSchemaValidator();
-  final preferences = await SharedPreferences.getInstance();
-  final repository = SharedPreferencesGraphRepository(
-    preferences: preferences,
-    validator: validator,
-  );
+  final repository = await _buildRepository(validator);
   final initialGraph = await _loadOrBootstrapGraph(
     repository: repository,
     validator: validator,
@@ -39,8 +41,24 @@ Future<SchemaValidator> _loadSchemaValidator() async {
   return SchemaValidator.fromString(schemaText);
 }
 
+Future<GraphRepository> _buildRepository(SchemaValidator validator) async {
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.macOS) {
+    final dir = await getApplicationSupportDirectory();
+    return LocalFileGraphRepository(
+      file: File('${dir.path}/lakshya_graph.json'),
+      validator: validator,
+    );
+  }
+
+  final preferences = await SharedPreferences.getInstance();
+  return SharedPreferencesGraphRepository(
+    preferences: preferences,
+    validator: validator,
+  );
+}
+
 Future<LakshyaGraph> _loadOrBootstrapGraph({
-  required SharedPreferencesGraphRepository repository,
+  required GraphRepository repository,
   required SchemaValidator validator,
 }) async {
   try {

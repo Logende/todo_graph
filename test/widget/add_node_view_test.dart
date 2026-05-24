@@ -67,4 +67,21 @@ void main() {
     expect(controller.graph.edges.single.parentId, equals('root'));
     expect(controller.graph.edges.single.childId, equals(added.id));
   });
+
+  testWidgets('prefills title and status from an incoming draft',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: AddNodeView(
+        controller: controller,
+        defaultParentId: 'root',
+        initialTitle: 'Push day',
+        initialStatus:
+            NodeStatus.periodic(intervalDaysSinceLastCompletion: 5),
+      ),
+    ));
+
+    expect(find.widgetWithText(TextFormField, 'Push day'), findsOneWidget);
+    expect(find.text('Recurring (period from last completion)'), findsOneWidget);
+    expect(find.widgetWithText(TextFormField, '5'), findsOneWidget);
+  });
 }

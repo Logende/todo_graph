@@ -66,7 +66,9 @@ class FilterEvaluator {
     if (filter.onlyLeaves) {
       final scope = list.map((n) => n.id).toSet();
       return list
-          .where((n) => _traversal.isLeafIn(n.id, scope: scope))
+          .where((n) =>
+              n.status.completion != null &&
+              _traversal.isLeafIn(n.id, scope: scope))
           .toList(growable: false);
     }
 

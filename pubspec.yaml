@@ -49,6 +49,12 @@ dependencies:
   # Android, Windows, Linux, and the web (localStorage).
   shared_preferences: ^2.5.5
 
+  # App-support directory lookup for desktop file persistence.
+  path_provider: ^2.1.5
+
+  # Native open/save panels for desktop JSON import/export.
+  file_selector: ^1.0.3
+
   # Graph layout engine for the dashboard's Graph view (Sugiyama
   # buchheim-style layered layout works well for our DAG of goals).
   graphview: ^1.5.1

@@ -4,6 +4,7 @@ import '../app/graph_controller.dart';
 import '../model/edge.dart';
 import '../model/node.dart';
 import '../model/node_relationship.dart';
+import '../service/node_queries.dart';
 import '../widgets/node_picker.dart';
 
 /// Inspector for a single node: shows its description and status, lists its
@@ -37,17 +38,26 @@ class NodeDetailView extends StatelessWidget {
           });
           return const Scaffold(body: SizedBox.shrink());
         }
-        return _DetailScaffold(controller: controller, node: node);
+        return _DetailScaffold(
+          controller: controller,
+          node: node,
+          queries: NodeQueries(controller.graph),
+        );
       },
     );
   }
 }
 
 class _DetailScaffold extends StatelessWidget {
-  const _DetailScaffold({required this.controller, required this.node});
+  const _DetailScaffold({
+    required this.controller,
+    required this.node,
+    required this.queries,
+  });
 
   final GraphController controller;
   final Node node;
+  final NodeQueries queries;
 
   @override
   Widget build(BuildContext context) {
@@ -75,7 +85,7 @@ class _DetailScaffold extends StatelessWidget {
             Text(node.description!),
             const SizedBox(height: 16),
           ],
-          _StatusSummary(node: node),
+          _StatusSummary(node: node, queries: queries),
           const SizedBox(height: 24),
           _SectionHeader(title: 'Parents (${parentEdges.length})'),
           ...parentEdges.map((e) => _ParentTile(
@@ -200,9 +210,10 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _StatusSummary extends StatelessWidget {
-  const _StatusSummary({required this.node});
+  const _StatusSummary({required this.node, required this.queries});
 
   final Node node;
+  final NodeQueries queries;
 
   @override
   Widget build(BuildContext context) {
@@ -211,8 +222,11 @@ class _StatusSummary extends StatelessWidget {
     final completionLabel =
         'Completion: ${_completionLabelFor(node)}';
     final lines = <String>[activationLabel, completionLabel];
+    final inheritedDeadline = queries.inheritedDeadline(node.id);
     if (node.deadline != null) {
       lines.add('Deadline: ${_formatDate(node.deadline!)}');
+    } else if (inheritedDeadline != null) {
+      lines.add('Deadline: ${_formatDate(inheritedDeadline)} (inherited)');
     }
     if (node.impact != null) {
       lines.add('Impact: ${node.impact!.name}');

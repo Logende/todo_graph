@@ -11,6 +11,8 @@ import '../model/node_status.dart';
 import '../model/settings.dart';
 import '../service/filter_evaluator.dart';
 import '../service/hierarchical_ordering.dart';
+import '../service/node_queries.dart';
+import '../widgets/node_picker.dart';
 import 'add_node_view.dart';
 import 'node_detail_view.dart';
 import 'quick_add_child_dialog.dart';
@@ -75,6 +77,7 @@ class _TodoListViewState extends State<TodoListView> {
         ],
       ),
       endDrawer: _FilterDrawer(
+        controller: widget.controller,
         filter: _filter,
         onChanged: (next) => setState(() => _filter = next),
         onSaveAsTile: _saveAsTile,
@@ -102,6 +105,7 @@ class _TodoListViewState extends State<TodoListView> {
         listenable: widget.controller,
         builder: (context, _) {
           final now = (widget.nowFactory ?? DateTime.now).call();
+          final queries = NodeQueries(widget.controller.graph);
           final filtered = FilterEvaluator(
             graph: widget.controller.graph,
             now: now,
@@ -140,6 +144,7 @@ class _TodoListViewState extends State<TodoListView> {
                 node: row.node,
                 depth: row.depth,
                 now: now,
+                queries: queries,
                 onToggleComplete: () =>
                     widget.controller.markCompleted(row.node.id),
                 onOpenDetail: () => Navigator.of(context).push(
@@ -179,6 +184,8 @@ class _TodoListViewState extends State<TodoListView> {
           builder: (_) => AddNodeView(
             controller: widget.controller,
             defaultParentId: parent.id,
+            initialTitle: result.title,
+            initialStatus: result.status,
           ),
         ),
       );
@@ -272,11 +279,13 @@ String? _addParentId(GraphController controller, Filter filter) {
 
 class _FilterDrawer extends StatelessWidget {
   const _FilterDrawer({
+    required this.controller,
     required this.filter,
     required this.onChanged,
     required this.onSaveAsTile,
   });
 
+  final GraphController controller;
   final Filter filter;
   final ValueChanged<Filter> onChanged;
   final Future<void> Function() onSaveAsTile;
@@ -302,6 +311,18 @@ class _FilterDrawer extends StatelessWidget {
               child: ListView(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 children: [
+                  ListTile(
+                    title: const Text('Goal scope'),
+                    subtitle: Text(_scopeTitle()),
+                    trailing: IconButton(
+                      tooltip: 'Show all goals',
+                      icon: const Icon(Icons.clear),
+                      onPressed: () =>
+                          onChanged(filter.copyWith(ancestorGoalIds: const [])),
+                    ),
+                    onTap: () => _pickScope(context),
+                  ),
+                  const Divider(),
                   SwitchListTile(
                     title: const Text('Only ongoing'),
                     value: filter.onlyOngoing,
@@ -412,6 +433,36 @@ class _FilterDrawer extends StatelessWidget {
       freeText: freeText ?? filter.freeText,
     );
   }
+
+  String _scopeTitle() {
+    final selectedId = filter.ancestorGoalIds.isNotEmpty
+        ? filter.ancestorGoalIds.first
+        : controller.graph.settings?.rootNodeId;
+    if (selectedId == null) return 'All goals';
+    return controller.graph.nodes
+            .where((n) => n.id == selectedId)
+            .firstOrNull
+            ?.title ??
+        'All goals';
+  }
+
+  Future<void> _pickScope(BuildContext context) async {
+    final parentIds = controller.graph.edges
+        .map((e) => e.parentId)
+        .toSet();
+    final excluded = controller.graph.nodes
+        .where((n) => !parentIds.contains(n.id))
+        .map((n) => n.id)
+        .toSet();
+    final selected = await showNodePicker(
+      context: context,
+      nodes: controller.graph.nodes,
+      excludeIds: excluded,
+      title: 'Pick a goal',
+    );
+    if (selected == null) return;
+    onChanged(filter.copyWith(ancestorGoalIds: [selected.id]));
+  }
 }
 
 class _ChipMultiSelect extends StatelessWidget {
@@ -467,6 +518,7 @@ class _NodeTile extends StatelessWidget {
     required this.node,
     required this.depth,
     required this.now,
+    required this.queries,
     required this.onToggleComplete,
     required this.onOpenDetail,
     required this.onQuickAddChild,
@@ -475,6 +527,7 @@ class _NodeTile extends StatelessWidget {
   final Node node;
   final int depth;
   final DateTime now;
+  final NodeQueries queries;
   final VoidCallback onToggleComplete;
   final VoidCallback onOpenDetail;
   final VoidCallback onQuickAddChild;
@@ -529,8 +582,11 @@ class _NodeTile extends StatelessWidget {
     if (node.description != null && node.description!.isNotEmpty) {
       parts.add(node.description!);
     }
+    final inheritedDeadline = queries.inheritedDeadline(node.id);
     if (node.deadline != null) {
       parts.add('Due ${_formatDate(node.deadline!)}');
+    } else if (inheritedDeadline != null) {
+      parts.add('Due ${_formatDate(inheritedDeadline)} (inherited)');
     }
     final c = node.status.completion;
     if (c is NTimesCompletion) {

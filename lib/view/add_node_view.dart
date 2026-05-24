@@ -22,10 +22,14 @@ class AddNodeView extends StatefulWidget {
     super.key,
     required this.controller,
     required this.defaultParentId,
+    this.initialTitle,
+    this.initialStatus,
   });
 
   final GraphController controller;
   final String defaultParentId;
+  final String? initialTitle;
+  final NodeStatus? initialStatus;
 
   @override
   State<AddNodeView> createState() => _AddNodeViewState();
@@ -46,6 +50,38 @@ class _AddNodeViewState extends State<AddNodeView> {
   DateTime? _deadline;
   DateTime? _activeFrom;
   DateTime? _activeUntil;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController.text = widget.initialTitle ?? '';
+    final initialStatus = widget.initialStatus;
+    if (initialStatus != null) {
+      _activation = switch (initialStatus.activation) {
+        AlwaysActive() => _ActivationChoice.alwaysActive,
+        BoundedActive() => _ActivationChoice.bounded,
+      };
+      if (initialStatus.activation case final BoundedActive bounded) {
+        _activeFrom = bounded.activeFrom;
+        _activeUntil = bounded.activeUntil;
+      }
+
+      switch (initialStatus.completion) {
+        case null:
+          _completion = _CompletionChoice.none;
+        case OneTimeCompletion():
+          _completion = _CompletionChoice.oneTime;
+        case NTimesCompletion(targetCount: final targetCount):
+          _completion = _CompletionChoice.nTimes;
+          _nTimesController.text = '$targetCount';
+        case PeriodicCompletion(
+          intervalDaysSinceLastCompletion: final intervalDays,
+        ):
+          _completion = _CompletionChoice.periodic;
+          _periodController.text = '$intervalDays';
+      }
+    }
+  }
 
   @override
   void dispose() {

@@ -121,14 +121,26 @@ void main() {
 
     test('onlyLeaves keeps only leaves inside the filtered subgraph', () {
       // Restrict to ancestors=work and onlyLeaves: among {write-paper,
-      // done-thing, llm-paper}, llm-paper is the leaf under write-paper, and
-      // done-thing is a leaf with no children. write-paper has one child
-      // (llm-paper) which is in the scope, so it is NOT a leaf in scope.
+      // done-thing, llm-paper}, llm-paper is structurally a leaf under
+      // write-paper but is a background goal, so only the actionable
+      // done-thing remains. write-paper has one child (llm-paper) which is
+      // in the scope, so it is NOT a leaf in scope.
       final result = FilterEvaluator(graph: graph, now: now).apply(
         const Filter(ancestorGoalIds: ['work'], onlyLeaves: true),
       );
+      expect(result.map((n) => n.id).toSet(), equals({'done-thing'}));
+    });
+
+    test('onlyLeaves excludes background goals even when they are structural leaves',
+        () {
+      final result =
+          FilterEvaluator(graph: graph, now: now).apply(const Filter(
+        onlyLeaves: true,
+      ));
       expect(result.map((n) => n.id).toSet(),
-          equals({'done-thing', 'llm-paper'}));
+          equals({'pushday', 'done-thing'}));
+      expect(result.any((n) => n.id == 'llm-paper'), isFalse,
+          reason: 'background goals are not actionable leaf tasks');
     });
 
     test('freeText matches title and description, case-insensitive', () {

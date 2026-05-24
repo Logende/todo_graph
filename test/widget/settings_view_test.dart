@@ -93,4 +93,25 @@ void main() {
     // Graph unchanged.
     expect(controller.graph, equals(const LakshyaGraph.empty()));
   });
+
+  testWidgets('shows JSON file import/export actions when desktop mode is enabled',
+      (tester) async {
+    final controller = GraphController(
+      initial: const LakshyaGraph.empty(),
+      save: (_) async {},
+      idGenerator: SequentialIdGenerator(),
+      clock: () => DateTime.utc(2026, 5, 24),
+    );
+
+    await tester.pumpWidget(MaterialApp(
+      home: SettingsView(
+        controller: controller,
+        validator: validator,
+        showDesktopFileActions: true,
+      ),
+    ));
+
+    expect(find.text('Export to JSON file'), findsOneWidget);
+    expect(find.text('Import from JSON file'), findsOneWidget);
+  });
 }

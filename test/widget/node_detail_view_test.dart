@@ -104,4 +104,27 @@ void main() {
     expect(controller.graph.nodes.any((n) => n.id == 'a'), isFalse);
     expect(controller.graph.edges.any((e) => e.id == 'e1'), isFalse);
   });
+
+  testWidgets('status summary shows inherited deadline when own deadline is unset',
+      (tester) async {
+    final graph = LakshyaGraph(
+      nodes: [
+        buildNode('root'),
+        buildNode('project',
+            title: 'Project',
+            deadline: DateTime.utc(2026, 5, 29)),
+        buildNode('task',
+            title: 'Write abstract', status: NodeStatus.oneTime()),
+      ],
+      edges: [
+        buildEdge('e1', from: 'project', to: 'root'),
+        buildEdge('e2', from: 'task', to: 'project'),
+      ],
+    );
+    final controller = _controllerWith(graph);
+
+    await _pumpDetailFor(tester, controller, 'task');
+
+    expect(find.text('Deadline: 2026-05-29 (inherited)'), findsOneWidget);
+  });
 }

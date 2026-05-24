@@ -9,7 +9,8 @@ import '../model/node_status.dart';
 /// Returns:
 /// * `null` when the user cancels.
 /// * a [QuickAddSubmission] when the user submits via Add.
-/// * [QuickAddEscalation.instance] when the user wants the full editor.
+/// * a [QuickAddEscalation] when the user wants the full editor, preserving
+///   the draft title and status they already chose.
 Future<QuickAddResult?> showQuickAddChild({
   required BuildContext context,
   required String parentTitle,
@@ -31,8 +32,9 @@ class QuickAddSubmission extends QuickAddResult {
 }
 
 class QuickAddEscalation extends QuickAddResult {
-  const QuickAddEscalation._();
-  static const QuickAddEscalation instance = QuickAddEscalation._();
+  const QuickAddEscalation({required this.title, required this.status});
+  final String title;
+  final NodeStatus status;
 }
 
 class _QuickAddChildDialog extends StatefulWidget {
@@ -106,8 +108,12 @@ class _QuickAddChildDialogState extends State<_QuickAddChildDialog> {
           child: const Text('Cancel'),
         ),
         TextButton(
-          onPressed: () =>
-              Navigator.of(context).pop(QuickAddEscalation.instance),
+          onPressed: () => Navigator.of(context).pop(
+            QuickAddEscalation(
+              title: _controller.text,
+              status: _buildStatus(),
+            ),
+          ),
           child: const Text('More options…'),
         ),
         FilledButton(onPressed: _submit, child: const Text('Add')),
