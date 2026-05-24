@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../app/graph_controller.dart';
+import '../model/activation_window.dart';
+import '../model/completion.dart';
 import '../model/edge.dart';
 import '../model/impact.dart';
 import '../model/node.dart';
 import '../model/node_relationship.dart';
+import '../model/node_status.dart';
 import '../service/node_queries.dart';
 import '../widgets/node_picker.dart';
 
@@ -358,10 +361,13 @@ String _arrowFor(RelationshipKind kind) => switch (kind) {
       RelationshipKind.alternativeTo => '~',
     };
 
-/// In-place editor for a node's intrinsic fields. Scoped to the values the
-/// detail screen surfaces: title, description, impact, deadline. Activation
-/// + completion semantics stay where they were created (use AddNodeView for
-/// new shapes).
+enum _ActivationChoice { alwaysActive, bounded }
+
+enum _CompletionChoice { none, oneTime, nTimes, periodic }
+
+/// Full in-place editor for every intrinsic property of a node: title,
+/// description, activation window, completion semantics, impact, deadline.
+/// Returns the edited [Node] via Navigator.pop, or null on cancel.
 class _NodeEditorDialog extends StatefulWidget {
   const _NodeEditorDialog({required this.initial});
   final Node initial;
@@ -375,29 +381,135 @@ class _NodeEditorDialogState extends State<_NodeEditorDialog> {
       TextEditingController(text: widget.initial.title);
   late final TextEditingController _descriptionController =
       TextEditingController(text: widget.initial.description ?? '');
+  late final TextEditingController _nTimesController =
+      TextEditingController(text: _initialTargetCount.toString());
+  late final TextEditingController _periodController =
+      TextEditingController(text: _initialIntervalDays.toString());
+
   late Impact? _impact = widget.initial.impact;
   late DateTime? _deadline = widget.initial.deadline;
+
+  late _ActivationChoice _activation = _initialActivationChoice;
+  late _CompletionChoice _completion = _initialCompletionChoice;
+  late DateTime? _activeFrom = _initialActiveFrom;
+  late DateTime? _activeUntil = _initialActiveUntil;
+
+  _ActivationChoice get _initialActivationChoice {
+    final activation = widget.initial.status.activation;
+    return activation is BoundedActive
+        ? _ActivationChoice.bounded
+        : _ActivationChoice.alwaysActive;
+  }
+
+  DateTime? get _initialActiveFrom {
+    final activation = widget.initial.status.activation;
+    return activation is BoundedActive ? activation.activeFrom : null;
+  }
+
+  DateTime? get _initialActiveUntil {
+    final activation = widget.initial.status.activation;
+    return activation is BoundedActive ? activation.activeUntil : null;
+  }
+
+  _CompletionChoice get _initialCompletionChoice {
+    final completion = widget.initial.status.completion;
+    return switch (completion) {
+      null => _CompletionChoice.none,
+      OneTimeCompletion() => _CompletionChoice.oneTime,
+      NTimesCompletion() => _CompletionChoice.nTimes,
+      PeriodicCompletion() => _CompletionChoice.periodic,
+    };
+  }
+
+  int get _initialTargetCount {
+    final completion = widget.initial.status.completion;
+    return completion is NTimesCompletion ? completion.targetCount : 1;
+  }
+
+  int get _initialIntervalDays {
+    final completion = widget.initial.status.completion;
+    return completion is PeriodicCompletion
+        ? completion.intervalDaysSinceLastCompletion
+        : 3;
+  }
 
   @override
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
+    _nTimesController.dispose();
+    _periodController.dispose();
     super.dispose();
+  }
+
+  ActivationWindow _buildActivation(DateTime now) {
+    switch (_activation) {
+      case _ActivationChoice.alwaysActive:
+        return const AlwaysActive();
+      case _ActivationChoice.bounded:
+        final from = _activeFrom ?? now;
+        final defaultUntil = from.add(const Duration(days: 30));
+        final picked = _activeUntil ?? defaultUntil;
+        // Defensive clamp matches AddNodeView's behaviour.
+        final until = picked.isBefore(from) ? from : picked;
+        return BoundedActive(activeFrom: from, activeUntil: until);
+    }
+  }
+
+  Completion? _buildCompletion() {
+    switch (_completion) {
+      case _CompletionChoice.none:
+        return null;
+      case _CompletionChoice.oneTime:
+        // Preserve a pre-existing completion timestamp so editing other
+        // properties of an already-completed task doesn't reopen it.
+        final existing = widget.initial.status.completion;
+        if (existing is OneTimeCompletion) return existing;
+        return const OneTimeCompletion();
+      case _CompletionChoice.nTimes:
+        final target = int.tryParse(_nTimesController.text) ?? 1;
+        final existing = widget.initial.status.completion;
+        final completedCount =
+            existing is NTimesCompletion ? existing.completedCount : 0;
+        final lastCompletedAt =
+            existing is NTimesCompletion ? existing.lastCompletedAt : null;
+        return NTimesCompletion(
+          targetCount: target,
+          completedCount: completedCount.clamp(0, target),
+          lastCompletedAt: lastCompletedAt,
+        );
+      case _CompletionChoice.periodic:
+        final days = int.tryParse(_periodController.text) ?? 3;
+        final existing = widget.initial.status.completion;
+        final lastCompletedAt = existing is PeriodicCompletion
+            ? existing.lastCompletedAt
+            : null;
+        return PeriodicCompletion(
+          intervalDaysSinceLastCompletion: days,
+          lastCompletedAt: lastCompletedAt,
+        );
+    }
   }
 
   void _submit() {
     final title = _titleController.text.trim();
     if (title.isEmpty) return;
+    final now = DateTime.now();
     final description = _descriptionController.text.trim();
+    final status = NodeStatus(
+      activation: _buildActivation(now),
+      completion: _buildCompletion(),
+    );
     final updated = widget.initial.copyWith(
       title: title,
       description: description.isEmpty ? null : description,
       clearDescription: description.isEmpty,
+      status: status,
       impact: _impact,
       clearImpact: _impact == null,
       deadline: _deadline,
       clearDeadline: _deadline == null,
-      updatedAt: DateTime.now(),
+      updatedAt: now,
     );
     Navigator.of(context).pop(updated);
   }
@@ -412,12 +524,41 @@ class _NodeEditorDialogState extends State<_NodeEditorDialog> {
     if (picked != null) setState(() => _deadline = picked);
   }
 
+  Future<void> _pickActiveFrom() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _activeFrom ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+    if (picked == null) return;
+    setState(() {
+      _activeFrom = picked;
+      // Keep the window valid.
+      if (_activeUntil != null && _activeUntil!.isBefore(picked)) {
+        _activeUntil = picked;
+      }
+    });
+  }
+
+  Future<void> _pickActiveUntil() async {
+    final minimum = _activeFrom ?? DateTime(2020);
+    final initial = _activeUntil ?? _activeFrom ?? DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial.isBefore(minimum) ? minimum : initial,
+      firstDate: minimum,
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) setState(() => _activeUntil = picked);
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Edit node'),
       content: SizedBox(
-        width: 400,
+        width: 440,
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -434,7 +575,91 @@ class _NodeEditorDialogState extends State<_NodeEditorDialog> {
                 maxLines: 3,
                 decoration: const InputDecoration(labelText: 'Description'),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
+              _SectionLabel('Activation'),
+              DropdownButtonFormField<_ActivationChoice>(
+                initialValue: _activation,
+                decoration: const InputDecoration(
+                  labelText: 'When is this active',
+                ),
+                items: const [
+                  DropdownMenuItem(
+                    value: _ActivationChoice.alwaysActive,
+                    child: Text('Always active'),
+                  ),
+                  DropdownMenuItem(
+                    value: _ActivationChoice.bounded,
+                    child: Text('Only during a time window'),
+                  ),
+                ],
+                onChanged: (v) => setState(() {
+                  if (v != null) _activation = v;
+                }),
+              ),
+              if (_activation == _ActivationChoice.bounded) ...[
+                const SizedBox(height: 8),
+                _DateRow(
+                  label: _activeFrom == null
+                      ? 'Active from'
+                      : 'Active from: ${_formatDate(_activeFrom!)}',
+                  onPick: _pickActiveFrom,
+                ),
+                _DateRow(
+                  label: _activeUntil == null
+                      ? 'Active until'
+                      : 'Active until: ${_formatDate(_activeUntil!)}',
+                  onPick: _pickActiveUntil,
+                ),
+              ],
+              const SizedBox(height: 20),
+              _SectionLabel('Completion'),
+              DropdownButtonFormField<_CompletionChoice>(
+                initialValue: _completion,
+                decoration: const InputDecoration(
+                  labelText: 'How is this completed',
+                ),
+                items: const [
+                  DropdownMenuItem(
+                    value: _CompletionChoice.oneTime,
+                    child: Text('Once (one-shot)'),
+                  ),
+                  DropdownMenuItem(
+                    value: _CompletionChoice.nTimes,
+                    child: Text('A fixed number of times'),
+                  ),
+                  DropdownMenuItem(
+                    value: _CompletionChoice.periodic,
+                    child: Text('Recurring (period from last completion)'),
+                  ),
+                  DropdownMenuItem(
+                    value: _CompletionChoice.none,
+                    child: Text('Background goal (no completion)'),
+                  ),
+                ],
+                onChanged: (v) => setState(() {
+                  if (v != null) _completion = v;
+                }),
+              ),
+              if (_completion == _CompletionChoice.nTimes) ...[
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _nTimesController,
+                  decoration:
+                      const InputDecoration(labelText: 'Target count'),
+                  keyboardType: TextInputType.number,
+                ),
+              ],
+              if (_completion == _CompletionChoice.periodic) ...[
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _periodController,
+                  decoration: const InputDecoration(
+                    labelText: 'Interval (days since last completion)',
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+              ],
+              const SizedBox(height: 20),
               DropdownButtonFormField<Impact?>(
                 initialValue: _impact,
                 decoration: const InputDecoration(labelText: 'Impact'),
@@ -486,6 +711,41 @@ class _NodeEditorDialogState extends State<_NodeEditorDialog> {
         ),
         FilledButton(onPressed: _submit, child: const Text('Save')),
       ],
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.label);
+  final String label;
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Text(
+        label,
+        style: Theme.of(context)
+            .textTheme
+            .titleSmall
+            ?.copyWith(fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+}
+
+class _DateRow extends StatelessWidget {
+  const _DateRow({required this.label, required this.onPick});
+  final String label;
+  final VoidCallback onPick;
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      title: Text(label),
+      trailing: IconButton(
+        icon: const Icon(Icons.calendar_today_outlined),
+        onPressed: onPick,
+      ),
     );
   }
 }
