@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../model/contribution.dart';
 import '../model/edge.dart';
+import '../model/filter_preset.dart';
 import '../model/impact.dart';
 import '../model/lakshya_graph.dart';
 import '../model/node.dart';
@@ -243,6 +244,12 @@ class GraphController extends ChangeNotifier {
   /// Replaces the entire graph (used by "Import from JSON").
   void replaceWith(LakshyaGraph incoming) {
     _updateAndPersist(incoming);
+  }
+
+  /// Overwrites the saved dashboard tiles in one step. Used by the
+  /// Manage Tiles screen for rename / delete / reorder operations.
+  void setFilterPresets(List<FilterPreset> presets) {
+    _updateAndPersist(_graph.copyWith(filterPresets: presets));
   }
 
   /// Broadcasts every error thrown by the [save] callback. The UI listens

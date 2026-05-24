@@ -10,6 +10,7 @@ import '../repository/graph_repository.dart';
 import '../service/desktop_graph_file_io.dart';
 import '../service/graph_io.dart';
 import '../service/schema_validator.dart';
+import 'manage_presets_view.dart';
 
 /// Global settings + JSON Export/Import.
 ///
@@ -283,6 +284,26 @@ class _SettingsViewState extends State<SettingsView> {
               _UrgentWindowTile(
                 value: settings.effectiveUrgentWindowDays,
                 onChanged: _setUrgentWindow,
+              ),
+              ListTile(
+                leading: const Icon(Icons.dashboard_customize_outlined),
+                title: const Text('Manage saved tiles'),
+                subtitle: Text(
+                  widget.controller.graph.filterPresets.isEmpty
+                      ? 'No tiles saved yet'
+                      : '${widget.controller.graph.filterPresets.length} '
+                          'saved tile'
+                          '${widget.controller.graph.filterPresets.length == 1
+                              ? ''
+                              : 's'} — rename, reorder, delete',
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) =>
+                        ManagePresetsView(controller: widget.controller),
+                  ),
+                ),
               ),
               const Divider(),
               if (widget.webFileSync != null &&
