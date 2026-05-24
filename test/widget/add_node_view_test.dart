@@ -4,6 +4,7 @@ import 'package:lakshya/app/graph_controller.dart';
 import 'package:lakshya/model/lakshya_graph.dart';
 import 'package:lakshya/model/node.dart';
 import 'package:lakshya/model/completion.dart';
+import 'package:lakshya/model/impact.dart';
 import 'package:lakshya/model/node_status.dart';
 import 'package:lakshya/service/id_generator.dart';
 import 'package:lakshya/view/add_node_view.dart';
@@ -68,7 +69,7 @@ void main() {
     expect(controller.graph.edges.single.childId, equals(added.id));
   });
 
-  testWidgets('prefills title and status from an incoming draft',
+  testWidgets('prefills title, status, impact, and deadline from an incoming draft',
       (tester) async {
     await tester.pumpWidget(MaterialApp(
       home: AddNodeView(
@@ -77,11 +78,25 @@ void main() {
         initialTitle: 'Push day',
         initialStatus:
             NodeStatus.periodic(intervalDaysSinceLastCompletion: 5),
+        initialImpact: Impact.high,
+        initialDeadline: DateTime.utc(2026, 5, 30),
       ),
     ));
 
     expect(find.widgetWithText(TextFormField, 'Push day'), findsOneWidget);
     expect(find.text('Recurring (period from last completion)'), findsOneWidget);
     expect(find.widgetWithText(TextFormField, '5'), findsOneWidget);
+
+    await tester.tap(find.text('Create'));
+    await tester.pumpAndSettle();
+
+    final added = controller.graph.nodes.last;
+    expect(added.title, 'Push day');
+    expect(added.impact, Impact.high);
+    expect(added.deadline, DateTime.utc(2026, 5, 30));
+    expect(
+      added.status.completion,
+      const PeriodicCompletion(intervalDaysSinceLastCompletion: 5),
+    );
   });
 }

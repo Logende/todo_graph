@@ -18,6 +18,11 @@ void main() {
       expect(next, equals(NodeStatus.alwaysOnBackground));
     });
 
+    test('markIncomplete is a no-op on a background goal', () {
+      final next = NodeStatus.alwaysOnBackground.markIncomplete();
+      expect(next, equals(NodeStatus.alwaysOnBackground));
+    });
+
     test('oneTime factory wires always-active + OneTimeCompletion', () {
       final s = NodeStatus.oneTime();
       expect(s.activation, isA<AlwaysActive>());
@@ -26,6 +31,12 @@ void main() {
       final done = s.markCompletedAt(now);
       expect(done.isOngoingAt(now), isFalse);
       expect((done.completion as OneTimeCompletion).completedAt, equals(now));
+      final reopened = done.markIncomplete();
+      expect(reopened.isOngoingAt(now), isTrue);
+      expect(
+        (reopened.completion as OneTimeCompletion).completedAt,
+        isNull,
+      );
     });
 
     test('periodic factory exposes relative cool-down', () {

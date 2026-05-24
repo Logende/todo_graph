@@ -367,9 +367,7 @@ class _SettingsViewState extends State<SettingsView> {
   void _setUrgentWindow(int days) {
     final current = widget.controller.graph.settings ?? const Settings();
     final next = current.copyWith(urgentWindowDays: days);
-    widget.controller.replaceWith(
-      widget.controller.graph.copyWith(settings: next),
-    );
+    widget.controller.updateSettings(next);
   }
 }
 

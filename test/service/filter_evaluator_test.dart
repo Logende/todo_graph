@@ -1,4 +1,6 @@
+import 'package:lakshya/model/activation_window.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lakshya/model/completion.dart';
 import 'package:lakshya/model/contribution.dart';
 import 'package:lakshya/model/filter.dart';
 import 'package:lakshya/model/lakshya_graph.dart';
@@ -35,6 +37,16 @@ void main() {
           _alwaysOn('work'),
           _periodic('pushday',
               interval: 3, lastCompletedAt: DateTime.utc(2026, 5, 22, 18)),
+          buildNode(
+            'conference',
+            status: NodeStatus(
+              activation: BoundedActive(
+                activeFrom: DateTime.utc(2026, 5, 30),
+                activeUntil: DateTime.utc(2026, 6, 2),
+              ),
+              completion: const OneTimeCompletion(),
+            ),
+          ),
           _oneTime('write-paper'),
           _oneTime('done-thing', completedAt: DateTime.utc(2026, 5, 20)),
           _alwaysOn('llm-paper', description: 'urgent llm paper'),
@@ -50,23 +62,48 @@ void main() {
       );
     });
 
-    test('an empty filter keeps every node', () {
+    test('an empty filter hides only timewise inactive tasks by default', () {
       final result =
           FilterEvaluator(graph: graph, now: now).apply(const Filter());
       expect(result.map((n) => n.id),
-          containsAll(graph.nodes.map((n) => n.id)));
+          containsAll(['root', 'health', 'work', 'write-paper', 'done-thing', 'llm-paper']));
+      expect(result.any((n) => n.id == 'pushday'), isFalse,
+          reason: 'periodic tasks in cool-down are hidden by default');
+      expect(result.any((n) => n.id == 'conference'), isFalse,
+          reason: 'future-window tasks are hidden by default');
+    });
+
+    test('showCompletedTasks=false hides fully completed one-time tasks', () {
+      final result = FilterEvaluator(graph: graph, now: now)
+          .apply(const Filter(showCompletedTasks: false));
+      expect(result.any((n) => n.id == 'done-thing'), isFalse);
+      expect(result.any((n) => n.id == 'write-paper'), isTrue);
+      expect(result.any((n) => n.id == 'pushday'), isFalse,
+          reason: 'periodic cooldown remains governed by the timewise toggle');
+    });
+
+    test('showTimewiseInactiveTasks brings back future and cool-down tasks', () {
+      final result = FilterEvaluator(graph: graph, now: now)
+          .apply(const Filter(showTimewiseInactiveTasks: true));
+      expect(result.map((n) => n.id), containsAll(graph.nodes.map((n) => n.id)));
       expect(result, hasLength(graph.nodes.length));
     });
 
     test('ancestorGoalIds restricts to descendants of the goal', () {
       final result = FilterEvaluator(graph: graph, now: now)
-          .apply(const Filter(ancestorGoalIds: ['health']));
+          .apply(const Filter(
+        ancestorGoalIds: ['health'],
+        showTimewiseInactiveTasks: true,
+      ));
       expect(result.map((n) => n.id), equals(['pushday']));
     });
 
     test('multiple ancestorGoalIds union descendants', () {
       final result = FilterEvaluator(graph: graph, now: now).apply(
-        const Filter(ancestorGoalIds: ['health', 'work']),
+        const Filter(
+          ancestorGoalIds: ['health', 'work'],
+          showTimewiseInactiveTasks: true,
+        ),
       );
       expect(
         result.map((n) => n.id).toSet(),
@@ -90,7 +127,10 @@ void main() {
 
     test('completionKinds restricts by completion kind', () {
       final result = FilterEvaluator(graph: graph, now: now)
-          .apply(const Filter(completionKinds: ['periodic']));
+          .apply(const Filter(
+        completionKinds: ['periodic'],
+        showTimewiseInactiveTasks: true,
+      ));
       expect(result.map((n) => n.id), equals(['pushday']));
     });
 
@@ -135,17 +175,21 @@ void main() {
         () {
       final result =
           FilterEvaluator(graph: graph, now: now).apply(const Filter(
+        showTimewiseInactiveTasks: true,
         onlyLeaves: true,
       ));
       expect(result.map((n) => n.id).toSet(),
-          equals({'pushday', 'done-thing'}));
+          equals({'pushday', 'conference', 'done-thing'}));
       expect(result.any((n) => n.id == 'llm-paper'), isFalse,
           reason: 'background goals are not actionable leaf tasks');
     });
 
     test('freeText matches title and description, case-insensitive', () {
       final byTitle = FilterEvaluator(graph: graph, now: now)
-          .apply(const Filter(freeText: 'PUSH'));
+          .apply(const Filter(
+        freeText: 'PUSH',
+        showTimewiseInactiveTasks: true,
+      ));
       expect(byTitle.map((n) => n.id), equals(['pushday']));
 
       final byDescription = FilterEvaluator(graph: graph, now: now)

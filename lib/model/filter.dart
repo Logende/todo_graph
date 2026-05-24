@@ -12,6 +12,8 @@ class Filter extends Equatable {
     this.contribution = FilterContribution.any,
     this.completionKinds = const [],
     this.activationKinds = const [],
+    this.showTimewiseInactiveTasks = false,
+    this.showCompletedTasks = true,
     this.onlyOngoing = false,
     this.onlyLeaves = false,
     this.freeText,
@@ -34,6 +36,14 @@ class Filter extends Equatable {
   /// (`"always_active"`, `"bounded"`). Empty list means "any activation".
   final List<String> activationKinds;
 
+  /// Include tasks that are currently hidden only because their time window
+  /// has not started yet or a periodic cool-down has not elapsed.
+  final bool showTimewiseInactiveTasks;
+
+  /// Include tasks that are already fully completed, such as one-time tasks
+  /// with a completion timestamp or N-times tasks that reached their target.
+  final bool showCompletedTasks;
+
   /// Keep only currently-actionable nodes.
   final bool onlyOngoing;
 
@@ -48,6 +58,8 @@ class Filter extends Equatable {
     FilterContribution? contribution,
     List<String>? completionKinds,
     List<String>? activationKinds,
+    bool? showTimewiseInactiveTasks,
+    bool? showCompletedTasks,
     bool? onlyOngoing,
     bool? onlyLeaves,
     String? freeText,
@@ -58,6 +70,9 @@ class Filter extends Equatable {
       contribution: contribution ?? this.contribution,
       completionKinds: completionKinds ?? this.completionKinds,
       activationKinds: activationKinds ?? this.activationKinds,
+      showTimewiseInactiveTasks:
+          showTimewiseInactiveTasks ?? this.showTimewiseInactiveTasks,
+      showCompletedTasks: showCompletedTasks ?? this.showCompletedTasks,
       onlyOngoing: onlyOngoing ?? this.onlyOngoing,
       onlyLeaves: onlyLeaves ?? this.onlyLeaves,
       freeText: clearFreeText ? null : (freeText ?? this.freeText),
@@ -70,6 +85,9 @@ class Filter extends Equatable {
           'contribution': contribution.toJsonValue(),
         if (completionKinds.isNotEmpty) 'completionKinds': completionKinds,
         if (activationKinds.isNotEmpty) 'activationKinds': activationKinds,
+        if (showTimewiseInactiveTasks)
+          'showTimewiseInactiveTasks': showTimewiseInactiveTasks,
+        if (!showCompletedTasks) 'showCompletedTasks': showCompletedTasks,
         if (onlyOngoing) 'onlyOngoing': onlyOngoing,
         if (onlyLeaves) 'onlyLeaves': onlyLeaves,
         if (freeText != null) 'freeText': freeText,
@@ -87,6 +105,9 @@ class Filter extends Equatable {
           : FilterContribution.fromJsonValue(contribRaw),
       completionKinds: completionRaw ?? const [],
       activationKinds: activationRaw ?? const [],
+      showTimewiseInactiveTasks:
+          (json['showTimewiseInactiveTasks'] as bool?) ?? false,
+      showCompletedTasks: (json['showCompletedTasks'] as bool?) ?? true,
       onlyOngoing: (json['onlyOngoing'] as bool?) ?? false,
       onlyLeaves: (json['onlyLeaves'] as bool?) ?? false,
       freeText: json['freeText'] as String?,
@@ -99,6 +120,8 @@ class Filter extends Equatable {
         contribution,
         completionKinds,
         activationKinds,
+        showTimewiseInactiveTasks,
+        showCompletedTasks,
         onlyOngoing,
         onlyLeaves,
         freeText,

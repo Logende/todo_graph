@@ -85,6 +85,17 @@ class NodeStatus extends Equatable {
     );
   }
 
+  /// Re-opens a previously completed task. Background goals (no completion)
+  /// are unchanged.
+  NodeStatus markIncomplete() {
+    final c = completion;
+    if (c == null) return this;
+    return NodeStatus(
+      activation: activation,
+      completion: c.markIncomplete(),
+    );
+  }
+
   NodeStatus copyWith({
     ActivationWindow? activation,
     Completion? completion,

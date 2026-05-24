@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lakshya/app/graph_controller.dart';
 import 'package:lakshya/model/lakshya_graph.dart';
+import 'package:lakshya/model/node_notification_settings.dart';
 import 'package:lakshya/model/node_relationship.dart';
 import 'package:lakshya/model/node_status.dart';
 import 'package:lakshya/service/id_generator.dart';
@@ -25,6 +26,12 @@ Future<void> _pumpDetailFor(
     home: NodeDetailView(controller: controller, nodeId: nodeId),
   ));
 }
+
+Finder _notificationDropdown() => find.byWidgetPredicate(
+      (widget) =>
+          widget is DropdownButtonFormField<bool?> &&
+          widget.decoration.labelText == 'Periodic reopen notifications',
+    );
 
 void main() {
   testWidgets('renders parents and relationships of the selected node',
@@ -126,5 +133,90 @@ void main() {
     await _pumpDetailFor(tester, controller, 'task');
 
     expect(find.text('Deadline: 2026-05-29 (inherited)'), findsOneWidget);
+  });
+
+  testWidgets('edit dialog saves notification override fields', (tester) async {
+    final graph = LakshyaGraph(
+      nodes: [
+        buildNode('root'),
+        buildNode('task',
+            title: 'Write abstract', status: NodeStatus.oneTime()),
+      ],
+      edges: [buildEdge('e1', from: 'task', to: 'root')],
+    );
+    final controller = _controllerWith(graph);
+
+    await _pumpDetailFor(tester, controller, 'task');
+
+    await tester.tap(find.byTooltip('Edit node'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.widgetWithText(
+        TextFormField,
+        'Deadline reminder lead time (hours)',
+      ),
+      '6',
+    );
+    await tester.ensureVisible(_notificationDropdown());
+    await tester.tap(_notificationDropdown());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Always notify').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    final updated = controller.graph.nodes.firstWhere((n) => n.id == 'task');
+    expect(
+      updated.notificationOverride,
+      equals(const NodeNotificationSettings(
+        deadlineLeadTimeHours: 6,
+        notifyOnPeriodicReopen: true,
+      )),
+    );
+  });
+
+  testWidgets('edit dialog can clear an existing notification override',
+      (tester) async {
+    final graph = LakshyaGraph(
+      nodes: [
+        buildNode('root'),
+        buildNode(
+          'task',
+          title: 'Write abstract',
+          status: NodeStatus.oneTime(),
+        ).copyWith(
+          notificationOverride: const NodeNotificationSettings(
+            deadlineLeadTimeHours: 6,
+            notifyOnPeriodicReopen: false,
+          ),
+        ),
+      ],
+      edges: [buildEdge('e1', from: 'task', to: 'root')],
+    );
+    final controller = _controllerWith(graph);
+
+    await _pumpDetailFor(tester, controller, 'task');
+
+    await tester.tap(find.byTooltip('Edit node'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.widgetWithText(
+        TextFormField,
+        'Deadline reminder lead time (hours)',
+      ),
+      '',
+    );
+    await tester.ensureVisible(_notificationDropdown());
+    await tester.tap(_notificationDropdown());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Use global default').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    final updated = controller.graph.nodes.firstWhere((n) => n.id == 'task');
+    expect(updated.notificationOverride, isNull);
   });
 }

@@ -302,6 +302,11 @@
           "type": "integer",
           "minimum": 0,
           "description": "Tasks with a deadline this many days or fewer away get top-of-list 'urgent' treatment in the default ordering. Defaults to 3."
+        },
+        "collapsedNodeIds": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Node ids whose children are collapsed in the hierarchical todo list view. Ignored by leaf-only views."
         }
       }
     }

@@ -11,6 +11,7 @@ class Settings extends Equatable {
     this.notifyOnPeriodicReopenByDefault,
     this.rootNodeId,
     this.urgentWindowDays,
+    this.collapsedNodeIds = const [],
   });
 
   /// Default hours before a deadline at which a reminder fires. Nodes may
@@ -31,6 +32,9 @@ class Settings extends Equatable {
   /// [kDefaultUrgentWindowDays].
   final int? urgentWindowDays;
 
+  /// Persisted collapsed state for the hierarchical todo list view.
+  final List<String> collapsedNodeIds;
+
   int get effectiveUrgentWindowDays =>
       urgentWindowDays ?? kDefaultUrgentWindowDays;
 
@@ -39,6 +43,7 @@ class Settings extends Equatable {
     bool? notifyOnPeriodicReopenByDefault,
     String? rootNodeId,
     int? urgentWindowDays,
+    List<String>? collapsedNodeIds,
   }) {
     return Settings(
       defaultDeadlineLeadTimeHours:
@@ -48,6 +53,7 @@ class Settings extends Equatable {
               this.notifyOnPeriodicReopenByDefault,
       rootNodeId: rootNodeId ?? this.rootNodeId,
       urgentWindowDays: urgentWindowDays ?? this.urgentWindowDays,
+      collapsedNodeIds: collapsedNodeIds ?? this.collapsedNodeIds,
     );
   }
 
@@ -58,6 +64,7 @@ class Settings extends Equatable {
           'notifyOnPeriodicReopenByDefault': notifyOnPeriodicReopenByDefault,
         if (rootNodeId != null) 'rootNodeId': rootNodeId,
         if (urgentWindowDays != null) 'urgentWindowDays': urgentWindowDays,
+        if (collapsedNodeIds.isNotEmpty) 'collapsedNodeIds': collapsedNodeIds,
       };
 
   factory Settings.fromJson(Map<String, dynamic> json) {
@@ -68,6 +75,8 @@ class Settings extends Equatable {
           json['notifyOnPeriodicReopenByDefault'] as bool?,
       rootNodeId: json['rootNodeId'] as String?,
       urgentWindowDays: json['urgentWindowDays'] as int?,
+      collapsedNodeIds:
+          (json['collapsedNodeIds'] as List?)?.cast<String>() ?? const [],
     );
   }
 
@@ -77,5 +86,6 @@ class Settings extends Equatable {
         notifyOnPeriodicReopenByDefault,
         rootNodeId,
         urgentWindowDays,
+        collapsedNodeIds,
       ];
 }

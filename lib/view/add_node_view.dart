@@ -24,12 +24,18 @@ class AddNodeView extends StatefulWidget {
     required this.defaultParentId,
     this.initialTitle,
     this.initialStatus,
+    this.initialContribution,
+    this.initialImpact,
+    this.initialDeadline,
   });
 
   final GraphController controller;
   final String defaultParentId;
   final String? initialTitle;
   final NodeStatus? initialStatus;
+  final Contribution? initialContribution;
+  final Impact? initialImpact;
+  final DateTime? initialDeadline;
 
   @override
   State<AddNodeView> createState() => _AddNodeViewState();
@@ -55,6 +61,9 @@ class _AddNodeViewState extends State<AddNodeView> {
   void initState() {
     super.initState();
     _titleController.text = widget.initialTitle ?? '';
+    _contribution = widget.initialContribution ?? Contribution.mandatory;
+    _impact = widget.initialImpact;
+    _deadline = widget.initialDeadline;
     final initialStatus = widget.initialStatus;
     if (initialStatus != null) {
       _activation = switch (initialStatus.activation) {

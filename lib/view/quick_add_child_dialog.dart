@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../model/contribution.dart';
+import '../model/impact.dart';
 import '../model/node_status.dart';
 
 /// Streamlined "Add child" form. Title-only by default, with a small status
@@ -26,15 +28,33 @@ sealed class QuickAddResult {
 }
 
 class QuickAddSubmission extends QuickAddResult {
-  const QuickAddSubmission({required this.title, required this.status});
+  const QuickAddSubmission({
+    required this.title,
+    required this.status,
+    required this.contribution,
+    required this.impact,
+    required this.deadline,
+  });
   final String title;
   final NodeStatus status;
+  final Contribution contribution;
+  final Impact? impact;
+  final DateTime? deadline;
 }
 
 class QuickAddEscalation extends QuickAddResult {
-  const QuickAddEscalation({required this.title, required this.status});
+  const QuickAddEscalation({
+    required this.title,
+    required this.status,
+    required this.contribution,
+    required this.impact,
+    required this.deadline,
+  });
   final String title;
   final NodeStatus status;
+  final Contribution contribution;
+  final Impact? impact;
+  final DateTime? deadline;
 }
 
 class _QuickAddChildDialog extends StatefulWidget {
@@ -50,6 +70,9 @@ enum _QuickStatusChoice { oneTime, periodicThreeDays, background }
 class _QuickAddChildDialogState extends State<_QuickAddChildDialog> {
   final _controller = TextEditingController();
   _QuickStatusChoice _choice = _QuickStatusChoice.oneTime;
+  Contribution _contribution = Contribution.mandatory;
+  Impact? _impact;
+  DateTime? _deadline;
 
   @override
   void dispose() {
@@ -67,8 +90,23 @@ class _QuickAddChildDialogState extends State<_QuickAddChildDialog> {
   void _submit() {
     final title = _controller.text.trim();
     if (title.isEmpty) return;
-    Navigator.of(context)
-        .pop(QuickAddSubmission(title: title, status: _buildStatus()));
+    Navigator.of(context).pop(QuickAddSubmission(
+      title: title,
+      status: _buildStatus(),
+      contribution: _contribution,
+      impact: _impact,
+      deadline: _deadline,
+    ));
+  }
+
+  Future<void> _pickDeadline() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _deadline ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) setState(() => _deadline = picked);
   }
 
   @override
@@ -99,6 +137,61 @@ class _QuickAddChildDialogState extends State<_QuickAddChildDialog> {
                   ),
               ],
             ),
+            const SizedBox(height: 16),
+            SegmentedButton<Contribution>(
+              segments: const [
+                ButtonSegment(
+                  value: Contribution.mandatory,
+                  label: Text('Mandatory'),
+                ),
+                ButtonSegment(
+                  value: Contribution.helpful,
+                  label: Text('Helpful'),
+                ),
+              ],
+              selected: {_contribution},
+              onSelectionChanged: (selection) => setState(() {
+                _contribution = selection.first;
+              }),
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<Impact?>(
+              initialValue: _impact,
+              decoration: const InputDecoration(labelText: 'Impact'),
+              items: [
+                const DropdownMenuItem<Impact?>(
+                  child: Text('— not set —'),
+                ),
+                for (final level in Impact.values)
+                  DropdownMenuItem<Impact?>(
+                    value: level,
+                    child: Text(_impactLabel(level)),
+                  ),
+              ],
+              onChanged: (v) => setState(() => _impact = v),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _deadline == null
+                        ? 'No deadline'
+                        : 'Deadline: ${_formatDate(_deadline!)}',
+                  ),
+                ),
+                TextButton(
+                  onPressed: _pickDeadline,
+                  child: Text(_deadline == null ? 'Pick deadline' : 'Change'),
+                ),
+                if (_deadline != null)
+                  IconButton(
+                    tooltip: 'Clear deadline',
+                    onPressed: () => setState(() => _deadline = null),
+                    icon: const Icon(Icons.clear),
+                  ),
+              ],
+            ),
           ],
         ),
       ),
@@ -112,6 +205,9 @@ class _QuickAddChildDialogState extends State<_QuickAddChildDialog> {
             QuickAddEscalation(
               title: _controller.text,
               status: _buildStatus(),
+              contribution: _contribution,
+              impact: _impact,
+              deadline: _deadline,
             ),
           ),
           child: const Text('More options…'),
@@ -127,3 +223,16 @@ String _choiceLabel(_QuickStatusChoice choice) => switch (choice) {
       _QuickStatusChoice.periodicThreeDays => 'Every 3 days',
       _QuickStatusChoice.background => 'Background goal',
     };
+
+String _impactLabel(Impact level) => switch (level) {
+      Impact.minimal => 'Minimal',
+      Impact.low => 'Low',
+      Impact.medium => 'Medium',
+      Impact.high => 'High',
+      Impact.critical => 'Critical',
+    };
+
+String _formatDate(DateTime dt) =>
+    '${dt.year.toString().padLeft(4, '0')}-'
+    '${dt.month.toString().padLeft(2, '0')}-'
+    '${dt.day.toString().padLeft(2, '0')}';

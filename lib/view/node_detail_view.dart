@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../app/graph_controller.dart';
@@ -8,6 +9,7 @@ import '../model/completion.dart';
 import '../model/edge.dart';
 import '../model/impact.dart';
 import '../model/node.dart';
+import '../model/node_notification_settings.dart';
 import '../model/node_relationship.dart';
 import '../model/node_status.dart';
 import '../service/node_queries.dart';
@@ -202,6 +204,14 @@ class _DetailScaffold extends StatelessWidget {
           'links, make sure Obsidian is installed and the vault is mounted.',
         );
       }
+    } on MissingPluginException {
+      if (!context.mounted) return;
+      await _showUrlError(
+        context,
+        'URL opening is not available in this running app build yet. '
+        'Fully quit and relaunch the app after rebuilding so the desktop '
+        'plugin is registered.',
+      );
     } catch (e) {
       if (!context.mounted) return;
       await _showUrlError(context, 'Could not open URL: $e');
@@ -572,6 +582,13 @@ class _NodeEditorDialogState extends State<_NodeEditorDialog> {
       TextEditingController(text: _initialTargetCount.toString());
   late final TextEditingController _periodController =
       TextEditingController(text: _initialIntervalDays.toString());
+  late final TextEditingController _leadTimeController = TextEditingController(
+    text: widget.initial.notificationOverride?.deadlineLeadTimeHours
+            ?.toString() ??
+        '',
+  );
+  late bool? _notifyOnReopen =
+      widget.initial.notificationOverride?.notifyOnPeriodicReopen;
 
   late Impact? _impact = widget.initial.impact;
   late DateTime? _deadline = widget.initial.deadline;
@@ -626,7 +643,21 @@ class _NodeEditorDialogState extends State<_NodeEditorDialog> {
     _descriptionController.dispose();
     _nTimesController.dispose();
     _periodController.dispose();
+    _leadTimeController.dispose();
     super.dispose();
+  }
+
+  /// Builds the NodeNotificationSettings from the current form state, or
+  /// returns null when both axes are 'use global default' so we don't
+  /// persist an empty override object.
+  NodeNotificationSettings? _buildNotificationOverride() {
+    final leadTimeText = _leadTimeController.text.trim();
+    final leadTime = leadTimeText.isEmpty ? null : int.tryParse(leadTimeText);
+    if (leadTime == null && _notifyOnReopen == null) return null;
+    return NodeNotificationSettings(
+      deadlineLeadTimeHours: leadTime,
+      notifyOnPeriodicReopen: _notifyOnReopen,
+    );
   }
 
   ActivationWindow _buildActivation(DateTime now) {
@@ -690,6 +721,12 @@ class _NodeEditorDialogState extends State<_NodeEditorDialog> {
     return null;
   }
 
+  String? _validateOptionalPositiveInt(String? raw) {
+    final trimmed = raw?.trim() ?? '';
+    if (trimmed.isEmpty) return null;
+    return _validatePositiveInt(trimmed);
+  }
+
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
     final title = _titleController.text.trim();
@@ -699,6 +736,7 @@ class _NodeEditorDialogState extends State<_NodeEditorDialog> {
       activation: _buildActivation(now),
       completion: _buildCompletion(),
     );
+    final override = _buildNotificationOverride();
     final updated = widget.initial.copyWith(
       title: title,
       description: description.isEmpty ? null : description,
@@ -708,6 +746,8 @@ class _NodeEditorDialogState extends State<_NodeEditorDialog> {
       clearImpact: _impact == null,
       deadline: _deadline,
       clearDeadline: _deadline == null,
+      notificationOverride: override,
+      clearNotificationOverride: override == null,
       updatedAt: now,
     );
     Navigator.of(context).pop(updated);
@@ -779,133 +819,170 @@ class _NodeEditorDialogState extends State<_NodeEditorDialog> {
                   maxLines: 3,
                   decoration: const InputDecoration(labelText: 'Description'),
                 ),
-              const SizedBox(height: 20),
-              _SectionLabel('Activation'),
-              DropdownButtonFormField<_ActivationChoice>(
-                initialValue: _activation,
-                decoration: const InputDecoration(
-                  labelText: 'When is this active',
-                ),
-                items: const [
-                  DropdownMenuItem(
-                    value: _ActivationChoice.alwaysActive,
-                    child: Text('Always active'),
-                  ),
-                  DropdownMenuItem(
-                    value: _ActivationChoice.bounded,
-                    child: Text('Only during a time window'),
-                  ),
-                ],
-                onChanged: (v) => setState(() {
-                  if (v != null) _activation = v;
-                }),
-              ),
-              if (_activation == _ActivationChoice.bounded) ...[
-                const SizedBox(height: 8),
-                _DateRow(
-                  label: _activeFrom == null
-                      ? 'Active from'
-                      : 'Active from: ${_formatDate(_activeFrom!)}',
-                  onPick: _pickActiveFrom,
-                ),
-                _DateRow(
-                  label: _activeUntil == null
-                      ? 'Active until'
-                      : 'Active until: ${_formatDate(_activeUntil!)}',
-                  onPick: _pickActiveUntil,
-                ),
-              ],
-              const SizedBox(height: 20),
-              _SectionLabel('Completion'),
-              DropdownButtonFormField<_CompletionChoice>(
-                initialValue: _completion,
-                decoration: const InputDecoration(
-                  labelText: 'How is this completed',
-                ),
-                items: const [
-                  DropdownMenuItem(
-                    value: _CompletionChoice.oneTime,
-                    child: Text('Once (one-shot)'),
-                  ),
-                  DropdownMenuItem(
-                    value: _CompletionChoice.nTimes,
-                    child: Text('A fixed number of times'),
-                  ),
-                  DropdownMenuItem(
-                    value: _CompletionChoice.periodic,
-                    child: Text('Recurring (period from last completion)'),
-                  ),
-                  DropdownMenuItem(
-                    value: _CompletionChoice.none,
-                    child: Text('Background goal (no completion)'),
-                  ),
-                ],
-                onChanged: (v) => setState(() {
-                  if (v != null) _completion = v;
-                }),
-              ),
-              if (_completion == _CompletionChoice.nTimes) ...[
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: _nTimesController,
-                  decoration:
-                      const InputDecoration(labelText: 'Target count'),
-                  keyboardType: TextInputType.number,
-                  validator: _validatePositiveInt,
-                ),
-              ],
-              if (_completion == _CompletionChoice.periodic) ...[
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: _periodController,
+                const SizedBox(height: 20),
+                _SectionLabel('Activation'),
+                DropdownButtonFormField<_ActivationChoice>(
+                  initialValue: _activation,
+                  isExpanded: true,
                   decoration: const InputDecoration(
-                    labelText: 'Interval (days since last completion)',
+                    labelText: 'When is this active',
                   ),
-                  keyboardType: TextInputType.number,
-                  validator: _validatePositiveInt,
-                ),
-              ],
-              const SizedBox(height: 20),
-              DropdownButtonFormField<Impact?>(
-                initialValue: _impact,
-                decoration: const InputDecoration(labelText: 'Impact'),
-                items: [
-                  const DropdownMenuItem<Impact?>(
-                    child: Text('— not set —'),
-                  ),
-                  for (final level in Impact.values)
-                    DropdownMenuItem<Impact?>(
-                      value: level,
-                      child: Text(_impactLabel(level)),
+                  items: const [
+                    DropdownMenuItem(
+                      value: _ActivationChoice.alwaysActive,
+                      child: Text('Always active'),
                     ),
-                ],
-                onChanged: (v) => setState(() => _impact = v),
-              ),
-              const SizedBox(height: 16),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(
-                  _deadline == null
-                      ? 'No deadline'
-                      : 'Deadline: ${_formatDate(_deadline!)}',
-                ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (_deadline != null)
-                      IconButton(
-                        tooltip: 'Clear deadline',
-                        icon: const Icon(Icons.clear),
-                        onPressed: () => setState(() => _deadline = null),
-                      ),
-                    IconButton(
-                      tooltip: 'Pick deadline',
-                      icon: const Icon(Icons.calendar_today_outlined),
-                      onPressed: _pickDeadline,
+                    DropdownMenuItem(
+                      value: _ActivationChoice.bounded,
+                      child: Text('Only during a time window'),
                     ),
                   ],
+                  onChanged: (v) => setState(() {
+                    if (v != null) _activation = v;
+                  }),
                 ),
-              ),
+                if (_activation == _ActivationChoice.bounded) ...[
+                  const SizedBox(height: 8),
+                  _DateRow(
+                    label: _activeFrom == null
+                        ? 'Active from'
+                        : 'Active from: ${_formatDate(_activeFrom!)}',
+                    onPick: _pickActiveFrom,
+                  ),
+                  _DateRow(
+                    label: _activeUntil == null
+                        ? 'Active until'
+                        : 'Active until: ${_formatDate(_activeUntil!)}',
+                    onPick: _pickActiveUntil,
+                  ),
+                ],
+                const SizedBox(height: 20),
+                _SectionLabel('Completion'),
+                DropdownButtonFormField<_CompletionChoice>(
+                  initialValue: _completion,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'How is this completed',
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: _CompletionChoice.oneTime,
+                      child: Text('Once (one-shot)'),
+                    ),
+                    DropdownMenuItem(
+                      value: _CompletionChoice.nTimes,
+                      child: Text('A fixed number of times'),
+                    ),
+                    DropdownMenuItem(
+                      value: _CompletionChoice.periodic,
+                      child: Text('Recurring (period from last completion)'),
+                    ),
+                    DropdownMenuItem(
+                      value: _CompletionChoice.none,
+                      child: Text('Background goal (no completion)'),
+                    ),
+                  ],
+                  onChanged: (v) => setState(() {
+                    if (v != null) _completion = v;
+                  }),
+                ),
+                if (_completion == _CompletionChoice.nTimes) ...[
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _nTimesController,
+                    decoration:
+                        const InputDecoration(labelText: 'Target count'),
+                    keyboardType: TextInputType.number,
+                    validator: _validatePositiveInt,
+                  ),
+                ],
+                if (_completion == _CompletionChoice.periodic) ...[
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _periodController,
+                    decoration: const InputDecoration(
+                      labelText: 'Interval (days since last completion)',
+                    ),
+                    keyboardType: TextInputType.number,
+                    validator: _validatePositiveInt,
+                  ),
+                ],
+                const SizedBox(height: 20),
+                _SectionLabel('Notifications'),
+                TextFormField(
+                  controller: _leadTimeController,
+                  decoration: const InputDecoration(
+                    labelText: 'Deadline reminder lead time (hours)',
+                    helperText: 'Leave blank to use the global default',
+                  ),
+                  keyboardType: TextInputType.number,
+                  validator: _validateOptionalPositiveInt,
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<bool?>(
+                  initialValue: _notifyOnReopen,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Periodic reopen notifications',
+                  ),
+                  items: const [
+                    DropdownMenuItem<bool?>(
+                      value: null,
+                      child: Text('Use global default'),
+                    ),
+                    DropdownMenuItem<bool?>(
+                      value: true,
+                      child: Text('Always notify'),
+                    ),
+                    DropdownMenuItem<bool?>(
+                      value: false,
+                      child: Text('Do not notify'),
+                    ),
+                  ],
+                  onChanged: (v) => setState(() => _notifyOnReopen = v),
+                ),
+                const SizedBox(height: 20),
+                DropdownButtonFormField<Impact?>(
+                  initialValue: _impact,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Impact'),
+                  items: [
+                    const DropdownMenuItem<Impact?>(
+                      child: Text('— not set —'),
+                    ),
+                    for (final level in Impact.values)
+                      DropdownMenuItem<Impact?>(
+                        value: level,
+                        child: Text(_impactLabel(level)),
+                      ),
+                  ],
+                  onChanged: (v) => setState(() => _impact = v),
+                ),
+                const SizedBox(height: 16),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    _deadline == null
+                        ? 'No deadline'
+                        : 'Deadline: ${_formatDate(_deadline!)}',
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_deadline != null)
+                        IconButton(
+                          tooltip: 'Clear deadline',
+                          icon: const Icon(Icons.clear),
+                          onPressed: () => setState(() => _deadline = null),
+                        ),
+                      IconButton(
+                        tooltip: 'Pick deadline',
+                        icon: const Icon(Icons.calendar_today_outlined),
+                        onPressed: _pickDeadline,
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),

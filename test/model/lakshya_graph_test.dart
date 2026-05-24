@@ -89,6 +89,7 @@ void main() {
           notifyOnPeriodicReopenByDefault: true,
           rootNodeId: 'n-1',
           urgentWindowDays: 5,
+          collapsedNodeIds: ['n-1'],
         ),
       );
 

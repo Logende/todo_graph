@@ -105,6 +105,33 @@ void main() {
       });
     });
 
+    group('markIncomplete', () {
+      test('one_time clears completion time', () {
+        final next = OneTimeCompletion(
+          completedAt: DateTime.utc(2026, 5, 24, 12),
+        ).markIncomplete() as OneTimeCompletion;
+        expect(next.completedAt, isNull);
+      });
+
+      test('n_times decrements and clears timestamp when back at zero', () {
+        final next = NTimesCompletion(
+          targetCount: 3,
+          completedCount: 1,
+          lastCompletedAt: DateTime.utc(2026, 5, 24, 12),
+        ).markIncomplete() as NTimesCompletion;
+        expect(next.completedCount, 0);
+        expect(next.lastCompletedAt, isNull);
+      });
+
+      test('periodic clears the last completion so it reopens immediately', () {
+        final next = PeriodicCompletion(
+          intervalDaysSinceLastCompletion: 3,
+          lastCompletedAt: DateTime.utc(2026, 5, 22),
+        ).markIncomplete() as PeriodicCompletion;
+        expect(next.lastCompletedAt, isNull);
+      });
+    });
+
     test('all variants round-trip through json', () {
       final variants = <Completion>[
         OneTimeCompletion(completedAt: DateTime.utc(2026, 5, 24, 12)),

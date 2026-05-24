@@ -10,6 +10,7 @@ import '../model/lakshya_graph.dart';
 import '../model/node.dart';
 import '../model/node_relationship.dart';
 import '../model/node_status.dart';
+import '../model/settings.dart';
 import '../service/clock.dart';
 import '../service/graph_mutator.dart';
 import '../service/id_generator.dart';
@@ -115,6 +116,24 @@ class GraphController extends ChangeNotifier {
     if (working != _graph) _updateAndPersist(working);
   }
 
+  /// Re-opens a previously completed node. Unlike [markCompleted], this does
+  /// not cascade through alternatives because re-opening one option should not
+  /// silently re-open its siblings.
+  void markIncomplete(String nodeId) {
+    final now = clock();
+    final next = _markOneIncomplete(_graph, nodeId, now);
+    if (next != _graph) _updateAndPersist(next);
+  }
+
+  /// Sets the completion checkbox state explicitly.
+  void setCompleted(String nodeId, {required bool isCompleted}) {
+    if (isCompleted) {
+      markCompleted(nodeId);
+    } else {
+      markIncomplete(nodeId);
+    }
+  }
+
   LakshyaGraph _markOne(LakshyaGraph graph, String nodeId, DateTime now) {
     final index = graph.nodes.indexWhere((n) => n.id == nodeId);
     if (index < 0) return graph;
@@ -122,6 +141,22 @@ class GraphController extends ChangeNotifier {
     if (node.status.completion == null) return graph; // background goal
     final updated = node.copyWith(
       status: node.status.markCompletedAt(now),
+      updatedAt: now,
+    );
+    return mutator.updateNode(graph, updated);
+  }
+
+  LakshyaGraph _markOneIncomplete(
+    LakshyaGraph graph,
+    String nodeId,
+    DateTime now,
+  ) {
+    final index = graph.nodes.indexWhere((n) => n.id == nodeId);
+    if (index < 0) return graph;
+    final node = graph.nodes[index];
+    if (node.status.completion == null) return graph;
+    final updated = node.copyWith(
+      status: node.status.markIncomplete(),
       updatedAt: now,
     );
     return mutator.updateNode(graph, updated);
@@ -250,6 +285,17 @@ class GraphController extends ChangeNotifier {
   /// Manage Tiles screen for rename / delete / reorder operations.
   void setFilterPresets(List<FilterPreset> presets) {
     _updateAndPersist(_graph.copyWith(filterPresets: presets));
+  }
+
+  /// Replaces the document-level settings in one step.
+  void updateSettings(Settings settings) {
+    _updateAndPersist(_graph.copyWith(settings: settings));
+  }
+
+  /// Persists which nodes are collapsed in the hierarchical todo list view.
+  void setCollapsedNodeIds(List<String> nodeIds) {
+    final current = _graph.settings ?? const Settings();
+    updateSettings(current.copyWith(collapsedNodeIds: nodeIds));
   }
 
   /// Broadcasts every error thrown by the [save] callback. The UI listens

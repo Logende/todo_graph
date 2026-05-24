@@ -5,6 +5,7 @@ import 'package:lakshya/model/node.dart';
 import 'package:lakshya/model/completion.dart';
 import 'package:lakshya/model/node_relationship.dart';
 import 'package:lakshya/model/node_status.dart';
+import 'package:lakshya/model/settings.dart';
 import 'package:lakshya/service/id_generator.dart';
 
 void main() {
@@ -85,6 +86,34 @@ void main() {
       final updated =
           controller.graph.nodes.single.status.completion as OneTimeCompletion;
       expect(updated.completedAt, equals(completedAt));
+    });
+
+    test('markIncomplete reopens a completed one-time task', () async {
+      final initial = LakshyaGraph(
+        nodes: [
+          Node(
+            id: 'task',
+            title: 'Write paper',
+            status: NodeStatus.oneTime(
+              completedAt: DateTime.utc(2026, 5, 24, 13),
+            ),
+            createdAt: DateTime.utc(2026, 5, 24),
+          ),
+        ],
+        edges: const [],
+      );
+      final controller = GraphController(
+        initial: initial,
+        save: (_) async {},
+        idGenerator: SequentialIdGenerator(),
+        clock: () => DateTime.utc(2026, 5, 24, 14),
+      );
+
+      controller.markIncomplete('task');
+
+      final updated =
+          controller.graph.nodes.single.status.completion as OneTimeCompletion;
+      expect(updated.completedAt, isNull);
     });
 
     test(
@@ -359,6 +388,34 @@ void main() {
       expect(controller.graph, equals(incoming));
       await Future<void>.delayed(Duration.zero);
       expect(saved, equals(incoming));
+    });
+
+    test('setCollapsedNodeIds persists hierarchical tree state in settings',
+        () async {
+      final initial = LakshyaGraph(
+        nodes: [
+          Node(
+            id: 'root',
+            title: 'Root',
+            status: NodeStatus.alwaysOnBackground,
+            createdAt: DateTime.utc(2026, 5, 24),
+          ),
+        ],
+        edges: const [],
+      );
+      final controller = GraphController(
+        initial: initial,
+        save: (_) async {},
+        idGenerator: SequentialIdGenerator(),
+        clock: () => DateTime.utc(2026, 5, 24),
+      );
+
+      controller.setCollapsedNodeIds(['root']);
+
+      expect(
+        controller.graph.settings,
+        const Settings(collapsedNodeIds: ['root']),
+      );
     });
   });
 }

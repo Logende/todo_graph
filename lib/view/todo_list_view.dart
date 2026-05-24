@@ -106,6 +106,7 @@ class _TodoListViewState extends State<TodoListView> {
         builder: (context, _) {
           final now = (widget.nowFactory ?? DateTime.now).call();
           final queries = NodeQueries(widget.controller.graph);
+          final isTreeMode = !_filter.onlyLeaves;
           final filtered = FilterEvaluator(
             graph: widget.controller.graph,
             now: now,
@@ -113,7 +114,7 @@ class _TodoListViewState extends State<TodoListView> {
           final urgentWindowDays =
               widget.controller.graph.settings?.effectiveUrgentWindowDays ??
                   kDefaultUrgentWindowDays;
-          final hierarchy = HierarchicalOrdering(
+          final fullHierarchy = HierarchicalOrdering(
             urgentWindow: Duration(days: urgentWindowDays),
           ).arrange(
             nodes: filtered,
@@ -121,6 +122,17 @@ class _TodoListViewState extends State<TodoListView> {
             relationships: widget.controller.graph.relationships,
             now: now,
           );
+          final collapsedNodeIds =
+              widget.controller.graph.settings?.collapsedNodeIds.toSet() ??
+                  const <String>{};
+          final hierarchy = isTreeMode
+              ? _applyCollapsedRows(
+                  fullHierarchy,
+                  collapsedNodeIds: collapsedNodeIds,
+                )
+              : fullHierarchy;
+          final expandablePathIds =
+              isTreeMode ? _expandablePathIds(fullHierarchy) : const <String>{};
 
           if (hierarchy.isEmpty) {
             return const Center(
@@ -148,8 +160,15 @@ class _TodoListViewState extends State<TodoListView> {
                 depth: row.depth,
                 now: now,
                 queries: queries,
-                onToggleComplete: () =>
-                    widget.controller.markCompleted(row.node.id),
+                isTreeMode: isTreeMode,
+                isCollapsed: collapsedNodeIds.contains(row.node.id),
+                isExpandable: expandablePathIds.contains(row.pathId),
+                onToggleCollapsed: () => _toggleCollapsed(row.node.id),
+                onSetCompleted: (isCompleted) =>
+                    widget.controller.setCompleted(
+                  row.node.id,
+                  isCompleted: isCompleted,
+                ),
                 onOpenDetail: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (_) => NodeDetailView(
@@ -165,6 +184,15 @@ class _TodoListViewState extends State<TodoListView> {
         },
       ),
     );
+  }
+
+  void _toggleCollapsed(String nodeId) {
+    final current = widget.controller.graph.settings?.collapsedNodeIds.toSet() ??
+        <String>{};
+    if (!current.add(nodeId)) {
+      current.remove(nodeId);
+    }
+    widget.controller.setCollapsedNodeIds(current.toList()..sort());
   }
 
   /// Translates a drag in the visible list into one or more
@@ -249,6 +277,9 @@ class _TodoListViewState extends State<TodoListView> {
         title: result.title,
         parentId: parent.id,
         status: result.status,
+        impact: result.impact,
+        deadline: result.deadline,
+        contribution: result.contribution,
       );
       return;
     }
@@ -260,6 +291,9 @@ class _TodoListViewState extends State<TodoListView> {
             defaultParentId: parent.id,
             initialTitle: result.title,
             initialStatus: result.status,
+            initialContribution: result.contribution,
+            initialImpact: result.impact,
+            initialDeadline: result.deadline,
           ),
         ),
       );
@@ -398,6 +432,26 @@ class _FilterDrawer extends StatelessWidget {
                   ),
                   const Divider(),
                   SwitchListTile(
+                    title: const Text('Show timewise inactive tasks'),
+                    subtitle: const Text(
+                      'Include future-window tasks and periodic tasks still '
+                      'waiting for their next appearance.',
+                    ),
+                    value: filter.showTimewiseInactiveTasks,
+                    onChanged: (v) => onChanged(
+                      filter.copyWith(showTimewiseInactiveTasks: v),
+                    ),
+                  ),
+                  SwitchListTile(
+                    title: const Text('Show completed tasks'),
+                    subtitle: const Text(
+                      'Include one-time and count-based tasks that are already done.',
+                    ),
+                    value: filter.showCompletedTasks,
+                    onChanged: (v) =>
+                        onChanged(filter.copyWith(showCompletedTasks: v)),
+                  ),
+                  SwitchListTile(
                     title: const Text('Only ongoing'),
                     value: filter.onlyOngoing,
                     onChanged: (v) =>
@@ -490,6 +544,8 @@ class _FilterDrawer extends StatelessWidget {
   }
 
   Filter _copyFilter({
+    bool? showTimewiseInactiveTasks,
+    bool? showCompletedTasks,
     bool? onlyOngoing,
     bool? onlyLeaves,
     FilterContribution? contribution,
@@ -502,6 +558,9 @@ class _FilterDrawer extends StatelessWidget {
       contribution: contribution ?? filter.contribution,
       completionKinds: completionKinds ?? filter.completionKinds,
       activationKinds: activationKinds ?? filter.activationKinds,
+      showTimewiseInactiveTasks:
+          showTimewiseInactiveTasks ?? filter.showTimewiseInactiveTasks,
+      showCompletedTasks: showCompletedTasks ?? filter.showCompletedTasks,
       onlyOngoing: onlyOngoing ?? filter.onlyOngoing,
       onlyLeaves: onlyLeaves ?? filter.onlyLeaves,
       freeText: freeText ?? filter.freeText,
@@ -594,7 +653,11 @@ class _NodeTile extends StatelessWidget {
     required this.depth,
     required this.now,
     required this.queries,
-    required this.onToggleComplete,
+    required this.isTreeMode,
+    required this.isCollapsed,
+    required this.isExpandable,
+    required this.onToggleCollapsed,
+    required this.onSetCompleted,
     required this.onOpenDetail,
     required this.onQuickAddChild,
   });
@@ -604,7 +667,11 @@ class _NodeTile extends StatelessWidget {
   final int depth;
   final DateTime now;
   final NodeQueries queries;
-  final VoidCallback onToggleComplete;
+  final bool isTreeMode;
+  final bool isCollapsed;
+  final bool isExpandable;
+  final VoidCallback onToggleCollapsed;
+  final ValueChanged<bool> onSetCompleted;
   final VoidCallback onOpenDetail;
   final VoidCallback onQuickAddChild;
 
@@ -625,6 +692,24 @@ class _NodeTile extends StatelessWidget {
         leading: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (isTreeMode)
+              SizedBox(
+                width: 28,
+                child: isExpandable
+                    ? IconButton(
+                        tooltip: isCollapsed
+                            ? 'Expand child tasks'
+                            : 'Collapse child tasks',
+                        icon: Icon(
+                          isCollapsed
+                              ? Icons.chevron_right
+                              : Icons.expand_more,
+                        ),
+                        visualDensity: VisualDensity.compact,
+                        onPressed: onToggleCollapsed,
+                      )
+                    : const SizedBox.shrink(),
+              ),
             ReorderableDragStartListener(
               index: index,
               child: Tooltip(
@@ -670,6 +755,16 @@ class _NodeTile extends StatelessWidget {
         color: Theme.of(context).colorScheme.primary,
       );
     }
+    final activation = node.status.activation;
+    if (activation is BoundedActive && now.isBefore(activation.activeFrom)) {
+      return Tooltip(
+        message: 'Not active yet',
+        child: Icon(
+          Icons.schedule_outlined,
+          color: Theme.of(context).colorScheme.outline,
+        ),
+      );
+    }
     final blockedByChildren =
         queries.openMandatoryChildrenOf(node.id, now).isNotEmpty;
     if (blockedByChildren) {
@@ -683,7 +778,9 @@ class _NodeTile extends StatelessWidget {
     }
     return Checkbox(
       value: !node.status.isOngoingAt(now),
-      onChanged: (_) => onToggleComplete(),
+      onChanged: (value) {
+        if (value != null) onSetCompleted(value);
+      },
     );
   }
 
@@ -739,3 +836,34 @@ class _NodeTile extends StatelessWidget {
     return '$y-$m-$d';
   }
 }
+
+List<HierarchicalRow> _applyCollapsedRows(
+  List<HierarchicalRow> rows, {
+  required Set<String> collapsedNodeIds,
+}) {
+  if (rows.isEmpty || collapsedNodeIds.isEmpty) return rows;
+  final visible = <HierarchicalRow>[];
+  final collapsedPrefixes = <String>[];
+  for (final row in rows) {
+    collapsedPrefixes.removeWhere(
+      (prefix) => !_isDescendantPath(row.pathId, prefix),
+    );
+    if (collapsedPrefixes.isNotEmpty) continue;
+    visible.add(row);
+    if (collapsedNodeIds.contains(row.node.id)) {
+      collapsedPrefixes.add(row.pathId);
+    }
+  }
+  return visible;
+}
+
+Set<String> _expandablePathIds(List<HierarchicalRow> rows) {
+  final out = <String>{};
+  for (var i = 0; i < rows.length - 1; i++) {
+    if (rows[i + 1].depth > rows[i].depth) out.add(rows[i].pathId);
+  }
+  return out;
+}
+
+bool _isDescendantPath(String path, String ancestorPath) =>
+    path.startsWith('$ancestorPath>');

@@ -1,3 +1,5 @@
+import '../model/activation_window.dart';
+import '../model/completion.dart';
 import '../model/filter.dart';
 import '../model/lakshya_graph.dart';
 import '../model/node.dart';
@@ -48,6 +50,14 @@ class FilterEvaluator {
       });
     }
 
+    if (!filter.showTimewiseInactiveTasks) {
+      candidates = candidates.where((n) => !_isTimewiseInactive(n));
+    }
+
+    if (!filter.showCompletedTasks) {
+      candidates = candidates.where((n) => !_isFullyCompleted(n));
+    }
+
     if (filter.onlyOngoing) {
       candidates = candidates.where((n) => n.status.isOngoingAt(now));
     }
@@ -73,5 +83,27 @@ class FilterEvaluator {
     }
 
     return list;
+  }
+
+  bool _isTimewiseInactive(Node node) {
+    final activation = node.status.activation;
+    if (activation is BoundedActive && now.isBefore(activation.activeFrom)) {
+      return true;
+    }
+    final completion = node.status.completion;
+    if (completion is PeriodicCompletion && !completion.isOpenAt(now)) {
+      return true;
+    }
+    return false;
+  }
+
+  bool _isFullyCompleted(Node node) {
+    final completion = node.status.completion;
+    return switch (completion) {
+      OneTimeCompletion() => completion.isCompleted,
+      NTimesCompletion() => completion.isExhausted,
+      PeriodicCompletion() => false,
+      null => false,
+    };
   }
 }

@@ -36,6 +36,14 @@ void main() {
     await tester.pumpAndSettle();
 
     // Refine the filter from inside the drawer.
+    await tester.scrollUntilVisible(
+      find.text('Only ongoing'),
+      200,
+      scrollable: find.descendant(
+        of: find.byType(Drawer),
+        matching: find.byType(Scrollable),
+      ),
+    );
     await tester.tap(find.text('Only ongoing'));
     await tester.pumpAndSettle();
 

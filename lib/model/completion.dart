@@ -17,6 +17,8 @@ sealed class Completion extends Equatable {
 
   Completion markCompletedAt(DateTime now);
 
+  Completion markIncomplete();
+
   Map<String, dynamic> toJson();
 
   static Completion fromJson(Map<String, dynamic> json) {
@@ -50,6 +52,9 @@ final class OneTimeCompletion extends Completion {
   @override
   Completion markCompletedAt(DateTime now) =>
       OneTimeCompletion(completedAt: now);
+
+  @override
+  Completion markIncomplete() => const OneTimeCompletion();
 
   @override
   Map<String, dynamic> toJson() => {
@@ -98,6 +103,16 @@ final class NTimesCompletion extends Completion {
         completedCount: (completedCount + 1).clamp(0, targetCount),
         lastCompletedAt: now,
       );
+
+  @override
+  Completion markIncomplete() {
+    final nextCount = (completedCount - 1).clamp(0, targetCount);
+    return NTimesCompletion(
+      targetCount: targetCount,
+      completedCount: nextCount,
+      lastCompletedAt: nextCount == 0 ? null : lastCompletedAt,
+    );
+  }
 
   @override
   Map<String, dynamic> toJson() => {
@@ -154,6 +169,11 @@ final class PeriodicCompletion extends Completion {
   Completion markCompletedAt(DateTime now) => PeriodicCompletion(
         intervalDaysSinceLastCompletion: intervalDaysSinceLastCompletion,
         lastCompletedAt: now,
+      );
+
+  @override
+  Completion markIncomplete() => PeriodicCompletion(
+        intervalDaysSinceLastCompletion: intervalDaysSinceLastCompletion,
       );
 
   @override
