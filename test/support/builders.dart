@@ -1,5 +1,6 @@
 import 'package:lakshya/model/contribution.dart';
 import 'package:lakshya/model/edge.dart';
+import 'package:lakshya/model/impact.dart';
 import 'package:lakshya/model/node.dart';
 import 'package:lakshya/model/node_status.dart';
 
@@ -19,8 +20,7 @@ Node buildNode(
   NodeStatus? status,
   DateTime? createdAt,
   DateTime? deadline,
-  double? priority,
-  double? positiveImpact,
+  Impact? impact,
 }) {
   return Node(
     id: id,
@@ -29,8 +29,7 @@ Node buildNode(
     status: status ?? NodeStatus.alwaysOnBackground,
     createdAt: createdAt ?? defaultCreatedAt,
     deadline: deadline,
-    priority: priority,
-    positiveImpact: positiveImpact,
+    impact: impact,
   );
 }
 

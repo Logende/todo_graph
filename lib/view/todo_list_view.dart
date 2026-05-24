@@ -6,6 +6,7 @@ import '../model/completion.dart';
 import '../model/filter.dart';
 import '../model/node.dart';
 import '../model/node_status.dart';
+import '../model/settings.dart';
 import '../service/filter_evaluator.dart';
 import '../service/node_ordering.dart';
 import 'add_node_view.dart';
@@ -22,14 +23,12 @@ class TodoListView extends StatelessWidget {
     required this.controller,
     required this.title,
     required this.filter,
-    this.ordering = const NodeOrdering(),
     this.nowFactory,
   });
 
   final GraphController controller;
   final String title;
   final Filter filter;
-  final NodeOrdering ordering;
 
   /// Injectable clock for tests. Defaults to wall clock.
   final DateTime Function()? nowFactory;
@@ -65,9 +64,15 @@ class TodoListView extends StatelessWidget {
             graph: controller.graph,
             now: now,
           ).apply(filter);
+          final urgentWindowDays =
+              controller.graph.settings?.effectiveUrgentWindowDays ??
+                  kDefaultUrgentWindowDays;
+          final ordering =
+              NodeOrdering(urgentWindow: Duration(days: urgentWindowDays));
           final ordered = ordering.defaultOrder(
             filtered,
-            priorityPins: controller.graph.priorityPins,
+            now: now,
+            relationships: controller.graph.relationships,
           );
 
           if (ordered.isEmpty) {

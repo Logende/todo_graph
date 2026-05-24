@@ -1,6 +1,7 @@
 import '../model/edge.dart';
 import '../model/lakshya_graph.dart';
 import '../model/node.dart';
+import '../model/node_relationship.dart';
 import 'graph_traversal.dart';
 
 /// Pure transformations on a [LakshyaGraph]. Every method returns a new
@@ -35,6 +36,9 @@ class GraphMutator {
       edges: graph.edges
           .where((e) => e.childId != nodeId && e.parentId != nodeId)
           .toList(),
+      relationships: graph.relationships
+          .where((r) => r.fromNodeId != nodeId && r.toNodeId != nodeId)
+          .toList(),
     );
   }
 
@@ -57,6 +61,48 @@ class GraphMutator {
     _requirePresent(index, edgeId, label: 'edgeId');
     return graph.copyWith(
       edges: graph.edges.where((e) => e.id != edgeId).toList(),
+    );
+  }
+
+  LakshyaGraph addRelationship(
+    LakshyaGraph graph,
+    NodeRelationship relationship,
+  ) {
+    _requireUniqueId(
+      graph.relationships.map((r) => r.id),
+      relationship.id,
+      label: 'relationship.id',
+    );
+    final nodeIds = graph.nodes.map((n) => n.id).toSet();
+    _requireKnownNode(
+      nodeIds,
+      relationship.fromNodeId,
+      label: 'relationship.fromNodeId',
+    );
+    _requireKnownNode(
+      nodeIds,
+      relationship.toNodeId,
+      label: 'relationship.toNodeId',
+    );
+    if (relationship.fromNodeId == relationship.toNodeId) {
+      throw ArgumentError.value(
+        relationship.fromNodeId,
+        'relationship',
+        'a relationship cannot connect a node to itself',
+      );
+    }
+    return graph.copyWith(
+      relationships: [...graph.relationships, relationship],
+    );
+  }
+
+  LakshyaGraph removeRelationship(LakshyaGraph graph, String relationshipId) {
+    final index =
+        graph.relationships.indexWhere((r) => r.id == relationshipId);
+    _requirePresent(index, relationshipId, label: 'relationshipId');
+    return graph.copyWith(
+      relationships:
+          graph.relationships.where((r) => r.id != relationshipId).toList(),
     );
   }
 

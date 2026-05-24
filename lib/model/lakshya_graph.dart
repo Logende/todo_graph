@@ -3,7 +3,7 @@ import 'package:equatable/equatable.dart';
 import 'edge.dart';
 import 'filter_preset.dart';
 import 'node.dart';
-import 'priority_pin.dart';
+import 'node_relationship.dart';
 import 'settings.dart';
 
 /// Current on-disk schema version. Pre-release: no legacy support is
@@ -12,13 +12,14 @@ import 'settings.dart';
 const int kCurrentSchemaVersion = 1;
 
 /// Root document for the Lakshya graph. The full graph (every node, every
-/// edge, every manual priority pin, every dashboard filter preset, plus
-/// global settings) is persisted as a single JSON document.
+/// structural edge, every importance/alternative relationship, every
+/// dashboard filter preset, plus global settings) is persisted as a single
+/// JSON document.
 class LakshyaGraph extends Equatable {
   const LakshyaGraph({
     required this.nodes,
     required this.edges,
-    this.priorityPins = const [],
+    this.relationships = const [],
     this.filterPresets = const [],
     this.settings,
     this.schemaVersion = kCurrentSchemaVersion,
@@ -28,14 +29,14 @@ class LakshyaGraph extends Equatable {
   const LakshyaGraph.empty()
       : nodes = const [],
         edges = const [],
-        priorityPins = const [],
+        relationships = const [],
         filterPresets = const [],
         settings = null,
         schemaVersion = kCurrentSchemaVersion;
 
   final List<Node> nodes;
   final List<Edge> edges;
-  final List<PriorityPin> priorityPins;
+  final List<NodeRelationship> relationships;
   final List<FilterPreset> filterPresets;
   final Settings? settings;
   final int schemaVersion;
@@ -43,7 +44,7 @@ class LakshyaGraph extends Equatable {
   LakshyaGraph copyWith({
     List<Node>? nodes,
     List<Edge>? edges,
-    List<PriorityPin>? priorityPins,
+    List<NodeRelationship>? relationships,
     List<FilterPreset>? filterPresets,
     Settings? settings,
     bool clearSettings = false,
@@ -52,7 +53,7 @@ class LakshyaGraph extends Equatable {
       schemaVersion: schemaVersion,
       nodes: nodes ?? this.nodes,
       edges: edges ?? this.edges,
-      priorityPins: priorityPins ?? this.priorityPins,
+      relationships: relationships ?? this.relationships,
       filterPresets: filterPresets ?? this.filterPresets,
       settings: clearSettings ? null : (settings ?? this.settings),
     );
@@ -62,15 +63,15 @@ class LakshyaGraph extends Equatable {
         'schemaVersion': schemaVersion,
         'nodes': nodes.map((n) => n.toJson()).toList(),
         'edges': edges.map((e) => e.toJson()).toList(),
-        if (priorityPins.isNotEmpty)
-          'priorityPins': priorityPins.map((p) => p.toJson()).toList(),
+        if (relationships.isNotEmpty)
+          'relationships': relationships.map((r) => r.toJson()).toList(),
         if (filterPresets.isNotEmpty)
           'filterPresets': filterPresets.map((p) => p.toJson()).toList(),
         if (settings != null) 'settings': settings!.toJson(),
       };
 
   factory LakshyaGraph.fromJson(Map<String, dynamic> json) {
-    final pinsRaw = json['priorityPins'] as List?;
+    final relationshipsRaw = json['relationships'] as List?;
     final presetsRaw = json['filterPresets'] as List?;
     final settingsRaw = json['settings'] as Map<String, dynamic>?;
     return LakshyaGraph(
@@ -84,11 +85,11 @@ class LakshyaGraph extends Equatable {
           .cast<Map<String, dynamic>>()
           .map(Edge.fromJson)
           .toList(),
-      priorityPins: pinsRaw == null
+      relationships: relationshipsRaw == null
           ? const []
-          : pinsRaw
+          : relationshipsRaw
               .cast<Map<String, dynamic>>()
-              .map(PriorityPin.fromJson)
+              .map(NodeRelationship.fromJson)
               .toList(),
       filterPresets: presetsRaw == null
           ? const []
@@ -105,7 +106,7 @@ class LakshyaGraph extends Equatable {
         schemaVersion,
         nodes,
         edges,
-        priorityPins,
+        relationships,
         filterPresets,
         settings,
       ];

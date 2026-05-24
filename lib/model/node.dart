@@ -1,13 +1,15 @@
 import 'package:equatable/equatable.dart';
 
 import 'attachment.dart';
+import 'impact.dart';
 import 'node_notification_settings.dart';
 import 'node_status.dart';
 
 /// A single goal or task in the Lakshya graph.
 ///
-/// Edges (parent links) live separately in [Edge]s on the graph document, so
-/// nodes themselves carry only their own intrinsic state.
+/// Structural parent edges live on the graph document (see `Edge`), as do
+/// importance/alternative relationships (`NodeRelationship`). A node itself
+/// carries only its own intrinsic state.
 class Node extends Equatable {
   const Node({
     required this.id,
@@ -15,8 +17,7 @@ class Node extends Equatable {
     required this.status,
     required this.createdAt,
     this.description,
-    this.priority,
-    this.positiveImpact,
+    this.impact,
     this.deadline,
     this.attachments = const [],
     this.notificationOverride,
@@ -30,19 +31,50 @@ class Node extends Equatable {
 
   final String? description;
 
-  /// User-assigned priority score. Higher ranks earlier in the default order.
-  final double? priority;
+  /// Fixed five-level user estimate of how impactful completing this node is.
+  /// Used by the default ordering when sorting non-urgent tasks. Relative
+  /// importance between specific nodes is expressed separately via
+  /// `NodeRelationship`.
+  final Impact? impact;
 
-  /// User-assigned positive impact estimate, combined with [priority] when
-  /// computing the default ordering.
-  final double? positiveImpact;
-
-  /// Hard deadline for this node. Drives deadline reminders.
+  /// Hard deadline for this node. Drives deadline reminders and the
+  /// "due-soon" tier of the default ordering.
   final DateTime? deadline;
 
   final List<Attachment> attachments;
   final NodeNotificationSettings? notificationOverride;
   final DateTime? updatedAt;
+
+  Node copyWith({
+    String? title,
+    NodeStatus? status,
+    DateTime? createdAt,
+    String? description,
+    Impact? impact,
+    DateTime? deadline,
+    List<Attachment>? attachments,
+    NodeNotificationSettings? notificationOverride,
+    DateTime? updatedAt,
+    bool clearImpact = false,
+    bool clearDeadline = false,
+    bool clearDescription = false,
+    bool clearNotificationOverride = false,
+  }) {
+    return Node(
+      id: id,
+      title: title ?? this.title,
+      status: status ?? this.status,
+      createdAt: createdAt ?? this.createdAt,
+      description: clearDescription ? null : (description ?? this.description),
+      impact: clearImpact ? null : (impact ?? this.impact),
+      deadline: clearDeadline ? null : (deadline ?? this.deadline),
+      attachments: attachments ?? this.attachments,
+      notificationOverride: clearNotificationOverride
+          ? null
+          : (notificationOverride ?? this.notificationOverride),
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -50,8 +82,7 @@ class Node extends Equatable {
         'status': status.toJson(),
         'createdAt': createdAt.toIso8601String(),
         if (description != null) 'description': description,
-        if (priority != null) 'priority': priority,
-        if (positiveImpact != null) 'positiveImpact': positiveImpact,
+        if (impact != null) 'impact': impact!.toJsonValue(),
         if (deadline != null) 'deadline': deadline!.toIso8601String(),
         if (attachments.isNotEmpty)
           'attachments': attachments.map((a) => a.toJson()).toList(),
@@ -65,14 +96,14 @@ class Node extends Equatable {
     final deadlineRaw = json['deadline'] as String?;
     final updatedRaw = json['updatedAt'] as String?;
     final overrideRaw = json['notificationOverride'] as Map<String, dynamic>?;
+    final impactRaw = json['impact'] as String?;
     return Node(
       id: json['id'] as String,
       title: json['title'] as String,
       status: NodeStatus.fromJson(json['status'] as Map<String, dynamic>),
       createdAt: DateTime.parse(json['createdAt'] as String),
       description: json['description'] as String?,
-      priority: (json['priority'] as num?)?.toDouble(),
-      positiveImpact: (json['positiveImpact'] as num?)?.toDouble(),
+      impact: impactRaw == null ? null : Impact.fromJsonValue(impactRaw),
       deadline: deadlineRaw == null ? null : DateTime.parse(deadlineRaw),
       attachments: attachmentsRaw == null
           ? const []
@@ -94,8 +125,7 @@ class Node extends Equatable {
         status,
         createdAt,
         description,
-        priority,
-        positiveImpact,
+        impact,
         deadline,
         attachments,
         notificationOverride,

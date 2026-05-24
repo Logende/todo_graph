@@ -1,94 +1,118 @@
 import '../model/node.dart';
-import '../model/priority_pin.dart';
+import '../model/node_relationship.dart';
+
+/// Default value for [NodeOrdering.urgentWindow] — overridable per call site
+/// (and at the document level via `Settings.urgentWindowDays`).
+const Duration kDefaultUrgentWindow = Duration(days: 3);
 
 /// Sorts nodes for display.
 ///
-/// The default ordering is: deadline ascending (nodes without a deadline last),
-/// then priority descending, then positiveImpact descending, then createdAt
-/// ascending as a stable tiebreaker.
+/// Two tiers:
 ///
-/// Manual [PriorityPin]s then override the result by forcing each `higherId`
-/// to appear before its `lowerId`. Pins referencing nodes that are not in the
-/// input list are ignored. Pins are applied via a topological sort, falling
-/// back to the default order to break ties.
+/// 1. **Urgent**: nodes whose deadline is within [urgentWindow] of `now`.
+///    Sorted by deadline ascending.
+/// 2. **Everything else**: nodes with deadlines (sorted earliest first), then
+///    impact descending, then createdAt ascending.
+///
+/// Importance relationships (`moreImportantThan` / `lessImportantThan`) act
+/// as topological overrides applied AFTER the score-based sort, using the
+/// score order to break ties. `alternativeTo` does not influence ordering —
+/// it only cascades completion (handled in the controller).
 class NodeOrdering {
-  const NodeOrdering();
+  const NodeOrdering({this.urgentWindow = kDefaultUrgentWindow});
+
+  final Duration urgentWindow;
 
   List<Node> defaultOrder(
     List<Node> nodes, {
-    List<PriorityPin> priorityPins = const [],
+    required DateTime now,
+    List<NodeRelationship> relationships = const [],
   }) {
     if (nodes.isEmpty) return const [];
 
-    final sorted = [...nodes]..sort(_compareDefault);
+    final (urgent, rest) = _splitByUrgency(nodes, now);
+    final orderedUrgent = [...urgent]..sort(_byDeadlineAsc);
+    final orderedRest = [...rest]..sort(_byDeadlineThenImpactThenAge);
 
-    if (priorityPins.isEmpty) return sorted;
+    final scoreOrder = [...orderedUrgent, ...orderedRest];
+    if (relationships.isEmpty) return scoreOrder;
 
-    return _applyPins(sorted, priorityPins);
+    return _applyImportanceRelationships(scoreOrder, relationships);
   }
 
-  int _compareDefault(Node a, Node b) {
-    // Deadline: earlier first; nodes without a deadline sink to the bottom.
-    final ad = a.deadline;
-    final bd = b.deadline;
-    if (ad != null && bd != null) {
-      final cmp = ad.compareTo(bd);
-      if (cmp != 0) return cmp;
-    } else if (ad != null) {
-      return -1;
-    } else if (bd != null) {
-      return 1;
+  (List<Node> urgent, List<Node> rest) _splitByUrgency(
+    List<Node> nodes,
+    DateTime now,
+  ) {
+    final cutoff = now.add(urgentWindow);
+    final urgent = <Node>[];
+    final rest = <Node>[];
+    for (final node in nodes) {
+      if (node.deadline != null && !node.deadline!.isAfter(cutoff)) {
+        urgent.add(node);
+      } else {
+        rest.add(node);
+      }
     }
+    return (urgent, rest);
+  }
 
-    final cmpPriority = _compareDescending(a.priority, b.priority);
-    if (cmpPriority != 0) return cmpPriority;
+  int _byDeadlineAsc(Node a, Node b) =>
+      _compareDeadline(a.deadline, b.deadline);
 
-    final cmpImpact =
-        _compareDescending(a.positiveImpact, b.positiveImpact);
+  int _byDeadlineThenImpactThenAge(Node a, Node b) {
+    final cmpDeadline = _compareDeadline(a.deadline, b.deadline);
+    if (cmpDeadline != 0) return cmpDeadline;
+    final cmpImpact = _compareImpactDesc(a, b);
     if (cmpImpact != 0) return cmpImpact;
-
     return a.createdAt.compareTo(b.createdAt);
   }
 
-  /// Compares two nullable doubles, descending. Nulls sink to the bottom.
-  int _compareDescending(double? a, double? b) {
-    if (a == null && b == null) return 0;
-    if (a == null) return 1;
-    if (b == null) return -1;
-    return b.compareTo(a);
+  /// Compares two nullable deadlines. Nulls sink to the bottom.
+  int _compareDeadline(DateTime? a, DateTime? b) {
+    if (a != null && b != null) return a.compareTo(b);
+    if (a != null) return -1;
+    if (b != null) return 1;
+    return 0;
   }
 
-  /// Topological sort by pin constraints, with the existing [order] used to
-  /// break ties (Kahn's algorithm with a stable tiebreaker).
-  List<Node> _applyPins(List<Node> order, List<PriorityPin> pins) {
-    final nodeById = {for (final n in order) n.id: n};
-    final indegree = <String, int>{for (final n in order) n.id: 0};
+  int _compareImpactDesc(Node a, Node b) {
+    final aw = a.impact?.weight ?? 0;
+    final bw = b.impact?.weight ?? 0;
+    return bw.compareTo(aw);
+  }
+
+  /// Topological sort by importance relationships, with [scoreOrder] used as
+  /// the tiebreaker (Kahn's algorithm with a stable insertion order).
+  List<Node> _applyImportanceRelationships(
+    List<Node> scoreOrder,
+    List<NodeRelationship> relationships,
+  ) {
+    final nodeById = {for (final n in scoreOrder) n.id: n};
+    final indegree = <String, int>{for (final n in scoreOrder) n.id: 0};
     final children = <String, List<String>>{
-      for (final n in order) n.id: <String>[],
+      for (final n in scoreOrder) n.id: <String>[],
     };
 
-    for (final pin in pins) {
-      if (!nodeById.containsKey(pin.higherId)) continue;
-      if (!nodeById.containsKey(pin.lowerId)) continue;
-      if (pin.higherId == pin.lowerId) continue;
-      children[pin.higherId]!.add(pin.lowerId);
-      indegree[pin.lowerId] = indegree[pin.lowerId]! + 1;
+    for (final relationship in relationships) {
+      final pair = _directedAbovePair(relationship, nodeById.keys.toSet());
+      if (pair == null) continue;
+      children[pair.above]!.add(pair.below);
+      indegree[pair.below] = indegree[pair.below]! + 1;
     }
 
-    // Position in the default order — earlier index wins ties.
     final position = <String, int>{
-      for (var i = 0; i < order.length; i++) order[i].id: i,
+      for (var i = 0; i < scoreOrder.length; i++) scoreOrder[i].id: i,
     };
     int byPosition(String a, String b) => position[a]!.compareTo(position[b]!);
 
     final ready = <String>[
-      for (final n in order)
+      for (final n in scoreOrder)
         if (indegree[n.id] == 0) n.id,
     ]..sort(byPosition);
 
     final result = <Node>[];
     final visited = <String>{};
-
     while (ready.isNotEmpty) {
       final id = ready.removeAt(0);
       if (!visited.add(id)) continue;
@@ -96,23 +120,59 @@ class NodeOrdering {
       for (final downstream in children[id]!) {
         indegree[downstream] = indegree[downstream]! - 1;
         if (indegree[downstream] == 0) {
-          // Insert keeping ready sorted by default position.
-          var insertAt = ready.length;
-          for (var i = 0; i < ready.length; i++) {
-            if (byPosition(downstream, ready[i]) < 0) {
-              insertAt = i;
-              break;
-            }
-          }
-          ready.insert(insertAt, downstream);
+          _insertSorted(ready, downstream, byPosition);
         }
       }
     }
 
-    if (result.length != order.length) {
-      // Conflict (pin cycle). Fall back to the default order, ignoring pins.
-      return order;
+    if (result.length != scoreOrder.length) {
+      // Conflicting constraints (cycle). Fall back to the score order.
+      return scoreOrder;
     }
     return result;
   }
+
+  void _insertSorted(
+    List<String> sorted,
+    String id,
+    int Function(String, String) compare,
+  ) {
+    for (var i = 0; i < sorted.length; i++) {
+      if (compare(id, sorted[i]) < 0) {
+        sorted.insert(i, id);
+        return;
+      }
+    }
+    sorted.add(id);
+  }
+
+  /// Maps a relationship to a (above, below) pair when it constitutes a hard
+  /// ordering constraint between two known nodes. Returns null for
+  /// alternativeTo, self-loops, or references to unknown nodes.
+  _AbovePair? _directedAbovePair(
+    NodeRelationship relationship,
+    Set<String> knownIds,
+  ) {
+    if (relationship.kind == RelationshipKind.alternativeTo) return null;
+    if (!knownIds.contains(relationship.fromNodeId)) return null;
+    if (!knownIds.contains(relationship.toNodeId)) return null;
+    if (relationship.fromNodeId == relationship.toNodeId) return null;
+    return switch (relationship.kind) {
+      RelationshipKind.moreImportantThan => _AbovePair(
+          above: relationship.fromNodeId,
+          below: relationship.toNodeId,
+        ),
+      RelationshipKind.lessImportantThan => _AbovePair(
+          above: relationship.toNodeId,
+          below: relationship.fromNodeId,
+        ),
+      RelationshipKind.alternativeTo => null,
+    };
+  }
+}
+
+class _AbovePair {
+  const _AbovePair({required this.above, required this.below});
+  final String above;
+  final String below;
 }

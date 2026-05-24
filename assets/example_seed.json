@@ -3,8 +3,15 @@
   "settings": {
     "rootNodeId": "all-goals-achieved",
     "defaultDeadlineLeadTimeHours": 24,
-    "notifyOnPeriodicReopenByDefault": true
+    "notifyOnPeriodicReopenByDefault": true,
+    "urgentWindowDays": 3
   },
+  "relationships": [
+    { "id": "r-llm-vs-orchestrator",
+      "fromNodeId": "llm-json-schema-paper",
+      "toNodeId": "schema-orchestrator-paper",
+      "kind": "alternativeTo" }
+  ],
   "nodes": [
     {
       "id": "all-goals-achieved",
@@ -123,7 +130,7 @@
       "createdAt": "2026-05-24T00:00:00.000Z" },
     { "id": "respond-to-watzenborn", "title": "Respond to Watzenborn",
       "description": "Urgent reply needed.",
-      "priority": 9,
+      "impact": "high",
       "deadline": "2026-05-26T17:00:00.000Z",
       "status": {
         "activation": { "kind": "always_active" },

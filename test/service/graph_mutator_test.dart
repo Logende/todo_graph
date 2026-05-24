@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lakshya/model/lakshya_graph.dart';
 import 'package:lakshya/model/node.dart';
+import 'package:lakshya/model/node_relationship.dart';
 import 'package:lakshya/model/node_status.dart';
 import 'package:lakshya/service/graph_mutator.dart';
 
@@ -109,6 +110,70 @@ void main() {
       final start = LakshyaGraph(nodes: const [], edges: const []);
       expect(() => mutator.removeEdge(start, 'ghost'),
           throwsA(isA<ArgumentError>()));
+    });
+
+    test('addRelationship requires both endpoints to exist', () {
+      final start = LakshyaGraph(
+        nodes: [buildNode('a'), buildNode('b')],
+        edges: const [],
+      );
+      expect(
+        () => mutator.addRelationship(
+          start,
+          const NodeRelationship(
+            id: 'r1',
+            fromNodeId: 'a',
+            toNodeId: 'ghost',
+            kind: RelationshipKind.moreImportantThan,
+          ),
+        ),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
+
+    test('addRelationship rejects self-loops', () {
+      final start = LakshyaGraph(
+        nodes: [buildNode('a')],
+        edges: const [],
+      );
+      expect(
+        () => mutator.addRelationship(
+          start,
+          const NodeRelationship(
+            id: 'r1',
+            fromNodeId: 'a',
+            toNodeId: 'a',
+            kind: RelationshipKind.alternativeTo,
+          ),
+        ),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
+
+    test('deleteNode also drops every incident relationship', () {
+      final start = LakshyaGraph(
+        nodes: [buildNode('a'), buildNode('b'), buildNode('c')],
+        edges: const [],
+        relationships: const [
+          NodeRelationship(
+            id: 'r1',
+            fromNodeId: 'a',
+            toNodeId: 'b',
+            kind: RelationshipKind.moreImportantThan,
+          ),
+          NodeRelationship(
+            id: 'r2',
+            fromNodeId: 'c',
+            toNodeId: 'b',
+            kind: RelationshipKind.alternativeTo,
+          ),
+        ],
+      );
+
+      final next = mutator.deleteNode(start, 'b');
+
+      expect(next.relationships, isEmpty,
+          reason: 'both r1 and r2 referenced node b');
     });
   });
 }

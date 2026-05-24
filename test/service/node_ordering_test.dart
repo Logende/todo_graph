@@ -1,14 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lakshya/model/impact.dart';
 import 'package:lakshya/model/node.dart';
+import 'package:lakshya/model/node_relationship.dart';
 import 'package:lakshya/model/node_status.dart';
-import 'package:lakshya/model/priority_pin.dart';
 import 'package:lakshya/service/node_ordering.dart';
 
-Node _n(
+Node _node(
   String id, {
   DateTime? deadline,
-  double? priority,
-  double? positiveImpact,
+  Impact? impact,
   DateTime? createdAt,
 }) =>
     Node(
@@ -16,82 +16,180 @@ Node _n(
       title: id,
       status: NodeStatus.alwaysOnBackground,
       deadline: deadline,
-      priority: priority,
-      positiveImpact: positiveImpact,
+      impact: impact,
       createdAt: createdAt ?? DateTime.utc(2026, 5, 24),
     );
 
 void main() {
-  group('NodeOrdering.defaultOrder', () {
-    test('empty input returns empty', () {
-      final result = const NodeOrdering().defaultOrder(const []);
-      expect(result, isEmpty);
+  final now = DateTime.utc(2026, 5, 24, 12);
+  const ordering = NodeOrdering();
+
+  group('Urgent tier (deadlines within the configured window)', () {
+    test('promotes deadlines inside the default 3-day window above everything',
+        () {
+      final later = _node('later',
+          deadline: DateTime.utc(2026, 6, 10), impact: Impact.critical);
+      final urgent = _node('urgent',
+          deadline: DateTime.utc(2026, 5, 26), impact: Impact.low);
+      final result =
+          ordering.defaultOrder([later, urgent], now: now);
+      expect(result.first.id, equals('urgent'),
+          reason: 'within 3-day window beats a critical impact later');
     });
 
-    test('sorts by deadline ascending, missing deadline goes last', () {
-      final nodes = [
-        _n('no-dl'),
-        _n('soon', deadline: DateTime.utc(2026, 5, 26)),
-        _n('later', deadline: DateTime.utc(2026, 6, 1)),
-      ];
-      final result = const NodeOrdering().defaultOrder(nodes);
-      expect(result.map((n) => n.id), equals(['soon', 'later', 'no-dl']));
+    test('within the urgent window, earlier deadline ranks first', () {
+      final twoDays = _node('two', deadline: DateTime.utc(2026, 5, 26));
+      final oneDay = _node('one', deadline: DateTime.utc(2026, 5, 25));
+      final result =
+          ordering.defaultOrder([twoDays, oneDay], now: now);
+      expect(result.map((n) => n.id), equals(['one', 'two']));
     });
 
-    test('breaks deadline ties by priority desc, then impact desc', () {
-      final deadline = DateTime.utc(2026, 5, 26);
-      final nodes = [
-        _n('a', deadline: deadline, priority: 1, positiveImpact: 5),
-        _n('b', deadline: deadline, priority: 5, positiveImpact: 1),
-        _n('c', deadline: deadline, priority: 5, positiveImpact: 9),
-      ];
-      final result = const NodeOrdering().defaultOrder(nodes);
-      expect(result.map((n) => n.id), equals(['c', 'b', 'a']));
+    test('the urgent window is configurable via [urgentWindow]', () {
+      final fiveDaysOut =
+          _node('out', deadline: DateTime.utc(2026, 5, 29));
+      final result = NodeOrdering(urgentWindow: const Duration(days: 7))
+          .defaultOrder([fiveDaysOut], now: now);
+      expect(result.single.id, equals('out'));
+    });
+  });
+
+  group('Non-urgent tier ordering', () {
+    test('non-urgent tasks: earlier deadlines first, then higher impact', () {
+      final juneEarly = _node('june-early',
+          deadline: DateTime.utc(2026, 6, 5), impact: Impact.low);
+      final juneLater = _node('june-later',
+          deadline: DateTime.utc(2026, 6, 10), impact: Impact.high);
+      final noDeadlineCritical =
+          _node('no-dl-critical', impact: Impact.critical);
+      final noDeadlineMinimal =
+          _node('no-dl-minimal', impact: Impact.minimal);
+
+      final result = ordering.defaultOrder([
+        noDeadlineMinimal,
+        juneLater,
+        noDeadlineCritical,
+        juneEarly,
+      ], now: now);
+
+      expect(
+        result.map((n) => n.id),
+        equals(['june-early', 'june-later', 'no-dl-critical', 'no-dl-minimal']),
+      );
     });
 
-    test('falls back to createdAt ascending as a stable tiebreaker', () {
-      final nodes = [
-        _n('newer', createdAt: DateTime.utc(2026, 5, 24)),
-        _n('older', createdAt: DateTime.utc(2026, 5, 20)),
-      ];
-      final result = const NodeOrdering().defaultOrder(nodes);
+    test('createdAt breaks ties for otherwise equal nodes', () {
+      final newer =
+          _node('newer', createdAt: DateTime.utc(2026, 5, 24));
+      final older =
+          _node('older', createdAt: DateTime.utc(2026, 5, 20));
+      final result = ordering.defaultOrder([newer, older], now: now);
       expect(result.map((n) => n.id), equals(['older', 'newer']));
     });
   });
 
-  group('NodeOrdering with priority pins', () {
-    test('a single pin lifts the higher node above the lower one', () {
-      final nodes = [
-        _n('a', priority: 10), // would come first by priority
-        _n('b', priority: 1),
-      ];
-      const pins = [PriorityPin(higherId: 'b', lowerId: 'a')];
-      final result =
-          const NodeOrdering().defaultOrder(nodes, priorityPins: pins);
-      expect(result.map((n) => n.id), equals(['b', 'a']));
+  group('Importance relationships override score-based ordering', () {
+    test('moreImportantThan lifts the source above the target', () {
+      final a = _node('a', impact: Impact.minimal);
+      final b = _node('b', impact: Impact.critical);
+      final result = ordering.defaultOrder(
+        [a, b],
+        now: now,
+        relationships: const [
+          NodeRelationship(
+            id: 'r1',
+            fromNodeId: 'a',
+            toNodeId: 'b',
+            kind: RelationshipKind.moreImportantThan,
+          ),
+        ],
+      );
+      expect(result.map((n) => n.id), equals(['a', 'b']));
     });
 
-    test('chained pins (a > b > c) form a consistent order', () {
-      final nodes = [
-        _n('c', priority: 100),
-        _n('b', priority: 50),
-        _n('a', priority: 1),
-      ];
-      const pins = [
-        PriorityPin(higherId: 'a', lowerId: 'b'),
-        PriorityPin(higherId: 'b', lowerId: 'c'),
-      ];
-      final result =
-          const NodeOrdering().defaultOrder(nodes, priorityPins: pins);
+    test('lessImportantThan lifts the target above the source', () {
+      final a = _node('a', impact: Impact.critical);
+      final b = _node('b', impact: Impact.critical);
+      final result = ordering.defaultOrder(
+        [a, b],
+        now: now,
+        relationships: const [
+          NodeRelationship(
+            id: 'r1',
+            fromNodeId: 'a',
+            toNodeId: 'b',
+            kind: RelationshipKind.lessImportantThan,
+          ),
+        ],
+      );
+      expect(result.map((n) => n.id), equals(['b', 'a']),
+          reason: '"a less important than b" => b above a');
+    });
+
+    test('chained importance relationships compose', () {
+      final a = _node('a', impact: Impact.minimal);
+      final b = _node('b', impact: Impact.minimal);
+      final c = _node('c', impact: Impact.critical);
+      final result = ordering.defaultOrder(
+        [c, b, a],
+        now: now,
+        relationships: const [
+          NodeRelationship(
+            id: 'r1',
+            fromNodeId: 'a',
+            toNodeId: 'b',
+            kind: RelationshipKind.moreImportantThan,
+          ),
+          NodeRelationship(
+            id: 'r2',
+            fromNodeId: 'b',
+            toNodeId: 'c',
+            kind: RelationshipKind.moreImportantThan,
+          ),
+        ],
+      );
       expect(result.map((n) => n.id), equals(['a', 'b', 'c']));
     });
 
-    test('a pin referencing unknown ids is ignored, not crashed on', () {
-      final nodes = [_n('a', priority: 1), _n('b', priority: 2)];
-      const pins = [PriorityPin(higherId: 'ghost', lowerId: 'a')];
-      final result =
-          const NodeOrdering().defaultOrder(nodes, priorityPins: pins);
+    test('alternativeTo has no effect on ordering', () {
+      final a = _node('a', impact: Impact.critical);
+      final b = _node('b', impact: Impact.minimal);
+      final result = ordering.defaultOrder(
+        [a, b],
+        now: now,
+        relationships: const [
+          NodeRelationship(
+            id: 'r1',
+            fromNodeId: 'a',
+            toNodeId: 'b',
+            kind: RelationshipKind.alternativeTo,
+          ),
+        ],
+      );
+      expect(result.map((n) => n.id), equals(['a', 'b']),
+          reason: 'alternativeTo is symmetric; ordering follows impact only');
+    });
+
+    test('importance relationships referencing unknown ids are ignored', () {
+      final a = _node('a', impact: Impact.minimal);
+      final b = _node('b', impact: Impact.critical);
+      final result = ordering.defaultOrder(
+        [a, b],
+        now: now,
+        relationships: const [
+          NodeRelationship(
+            id: 'r1',
+            fromNodeId: 'ghost',
+            toNodeId: 'a',
+            kind: RelationshipKind.moreImportantThan,
+          ),
+        ],
+      );
       expect(result.map((n) => n.id), equals(['b', 'a']));
     });
+  });
+
+  test('empty input returns empty', () {
+    expect(ordering.defaultOrder(const [], now: now), isEmpty);
   });
 }

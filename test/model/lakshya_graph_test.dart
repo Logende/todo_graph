@@ -4,11 +4,12 @@ import 'package:lakshya/model/contribution.dart';
 import 'package:lakshya/model/edge.dart';
 import 'package:lakshya/model/filter.dart';
 import 'package:lakshya/model/filter_preset.dart';
+import 'package:lakshya/model/impact.dart';
 import 'package:lakshya/model/lakshya_graph.dart';
 import 'package:lakshya/model/node.dart';
 import 'package:lakshya/model/node_notification_settings.dart';
+import 'package:lakshya/model/node_relationship.dart';
 import 'package:lakshya/model/node_status.dart';
-import 'package:lakshya/model/priority_pin.dart';
 import 'package:lakshya/model/settings.dart';
 
 void main() {
@@ -18,7 +19,7 @@ void main() {
       expect(g.schemaVersion, equals(kCurrentSchemaVersion));
       expect(g.nodes, isEmpty);
       expect(g.edges, isEmpty);
-      expect(g.priorityPins, isEmpty);
+      expect(g.relationships, isEmpty);
       expect(g.filterPresets, isEmpty);
       expect(g.settings, isNull);
     });
@@ -38,8 +39,7 @@ void main() {
             description: 'Urgent deadline',
             status: NodeStatus.oneTime(),
             deadline: DateTime.utc(2026, 5, 26, 17),
-            priority: 9.0,
-            positiveImpact: 5.0,
+            impact: Impact.high,
             createdAt: DateTime.utc(2026, 5, 24),
             updatedAt: DateTime.utc(2026, 5, 24, 11),
             attachments: const [
@@ -59,8 +59,13 @@ void main() {
             contribution: Contribution.helpful,
           ),
         ],
-        priorityPins: const [
-          PriorityPin(higherId: 'n-2', lowerId: 'n-1'),
+        relationships: const [
+          NodeRelationship(
+            id: 'r-1',
+            fromNodeId: 'n-2',
+            toNodeId: 'n-1',
+            kind: RelationshipKind.moreImportantThan,
+          ),
         ],
         filterPresets: const [
           FilterPreset(
@@ -83,6 +88,7 @@ void main() {
           defaultDeadlineLeadTimeHours: 24,
           notifyOnPeriodicReopenByDefault: true,
           rootNodeId: 'n-1',
+          urgentWindowDays: 5,
         ),
       );
 
@@ -94,7 +100,7 @@ void main() {
     test('omits empty optional collections from json', () {
       const g = LakshyaGraph.empty();
       final json = g.toJson();
-      expect(json.containsKey('priorityPins'), isFalse);
+      expect(json.containsKey('relationships'), isFalse);
       expect(json.containsKey('filterPresets'), isFalse);
       expect(json.containsKey('settings'), isFalse);
       expect(json['nodes'], isEmpty);

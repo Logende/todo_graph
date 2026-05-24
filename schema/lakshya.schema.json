@@ -20,9 +20,10 @@
       "type": "array",
       "items": { "$ref": "#/$defs/Edge" }
     },
-    "priorityPins": {
+    "relationships": {
       "type": "array",
-      "items": { "$ref": "#/$defs/PriorityPin" }
+      "items": { "$ref": "#/$defs/NodeRelationship" },
+      "description": "Non-structural connections between nodes: importance overrides ('moreImportantThan', 'lessImportantThan') and alternatives ('alternativeTo'). Distinct from edges, which describe the goal hierarchy."
     },
     "filterPresets": {
       "type": "array",
@@ -40,13 +41,10 @@
         "title": { "type": "string", "minLength": 1 },
         "description": { "type": "string" },
         "status": { "$ref": "#/$defs/NodeStatus" },
-        "priority": {
-          "type": "number",
-          "description": "User-assigned priority score. Higher ranks earlier in the default ordering."
-        },
-        "positiveImpact": {
-          "type": "number",
-          "description": "User-assigned positive impact estimate. Combined with priority for the default ordering."
+        "impact": {
+          "type": "string",
+          "enum": ["minimal", "low", "medium", "high", "critical"],
+          "description": "Fixed five-level user estimate of how impactful completing this node is. Used by the default ordering for non-urgent tasks. Relative importance between specific nodes is expressed via a relationship instead."
         },
         "deadline": {
           "type": "string",
@@ -204,14 +202,19 @@
         }
       }
     },
-    "PriorityPin": {
+    "NodeRelationship": {
       "type": "object",
-      "required": ["higherId", "lowerId"],
+      "required": ["id", "fromNodeId", "toNodeId", "kind"],
       "additionalProperties": false,
-      "description": "Hard manual override declaring one node ranks above another, regardless of priority/impact scores.",
+      "description": "A non-structural connection between two nodes. Directional kinds ('moreImportantThan', 'lessImportantThan') carry meaning in the order of (fromNodeId, toNodeId). The bidirectional kind 'alternativeTo' is symmetric and additionally cascades completion — closing one alternative closes the other.",
       "properties": {
-        "higherId": { "type": "string", "minLength": 1 },
-        "lowerId": { "type": "string", "minLength": 1 }
+        "id": { "type": "string", "minLength": 1 },
+        "fromNodeId": { "type": "string", "minLength": 1 },
+        "toNodeId": { "type": "string", "minLength": 1 },
+        "kind": {
+          "type": "string",
+          "enum": ["moreImportantThan", "lessImportantThan", "alternativeTo"]
+        }
       }
     },
     "FilterPreset": {
@@ -294,6 +297,11 @@
         "rootNodeId": {
           "type": "string",
           "description": "ID of the 'all goals achieved' top-level node. The graph engine treats this as the universal ancestor when computing descendant filters with no ancestorGoalIds set."
+        },
+        "urgentWindowDays": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Tasks with a deadline this many days or fewer away get top-of-list 'urgent' treatment in the default ordering. Defaults to 3."
         }
       }
     }

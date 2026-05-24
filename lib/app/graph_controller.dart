@@ -4,16 +4,19 @@ import 'package:flutter/foundation.dart';
 
 import '../model/contribution.dart';
 import '../model/edge.dart';
+import '../model/impact.dart';
 import '../model/lakshya_graph.dart';
 import '../model/node.dart';
+import '../model/node_relationship.dart';
 import '../model/node_status.dart';
 import '../service/clock.dart';
 import '../service/graph_mutator.dart';
 import '../service/id_generator.dart';
 
 /// Owns the in-memory [LakshyaGraph], applies high-level user actions
-/// (add node, mark complete, import), and persists the new graph through the
-/// injected [save] callback. Notifies listeners after every state change.
+/// (add node, mark complete, import, link), and persists the new graph
+/// through the injected [save] callback. Notifies listeners after every
+/// state change.
 ///
 /// All mutation routes through [GraphMutator] so the DAG invariants stay
 /// enforced regardless of which view triggered the change.
@@ -42,8 +45,7 @@ class GraphController extends ChangeNotifier {
     required String parentId,
     required NodeStatus status,
     String? description,
-    double? priority,
-    double? positiveImpact,
+    Impact? impact,
     DateTime? deadline,
     Contribution contribution = Contribution.mandatory,
   }) {
@@ -54,8 +56,7 @@ class GraphController extends ChangeNotifier {
       status: status,
       createdAt: now,
       description: description,
-      priority: priority,
-      positiveImpact: positiveImpact,
+      impact: impact,
       deadline: deadline,
     );
     final withNode = mutator.addNode(_graph, node);
@@ -77,30 +78,47 @@ class GraphController extends ChangeNotifier {
     _updateAndPersist(mutator.updateNode(_graph, updated));
   }
 
-  /// Removes a node and all incident edges.
+  /// Removes a node and all incident edges and relationships.
   void deleteNode(String nodeId) {
     _updateAndPersist(mutator.deleteNode(_graph, nodeId));
   }
 
-  /// Marks the node complete at the current clock reading.
+  /// Marks the node complete at the current clock reading. Cascades through
+  /// `alternativeTo` relationships so closing one alternative closes its
+  /// twins in the same action.
   void markCompleted(String nodeId) {
-    final index = _graph.nodes.indexWhere((n) => n.id == nodeId);
-    if (index < 0) return;
-    final node = _graph.nodes[index];
-    final updated = Node(
-      id: node.id,
-      title: node.title,
-      status: node.status.markCompletedAt(clock()),
-      createdAt: node.createdAt,
-      description: node.description,
-      priority: node.priority,
-      positiveImpact: node.positiveImpact,
-      deadline: node.deadline,
-      attachments: node.attachments,
-      notificationOverride: node.notificationOverride,
-      updatedAt: clock(),
+    final now = clock();
+    final visited = <String>{};
+    final pending = <String>[nodeId];
+    var working = _graph;
+    while (pending.isNotEmpty) {
+      final currentId = pending.removeAt(0);
+      if (!visited.add(currentId)) continue;
+      working = _markOne(working, currentId, now);
+      pending.addAll(_alternativesOf(working, currentId));
+    }
+    if (working != _graph) _updateAndPersist(working);
+  }
+
+  LakshyaGraph _markOne(LakshyaGraph graph, String nodeId, DateTime now) {
+    final index = graph.nodes.indexWhere((n) => n.id == nodeId);
+    if (index < 0) return graph;
+    final node = graph.nodes[index];
+    if (node.status.completion == null) return graph; // background goal
+    final updated = node.copyWith(
+      status: node.status.markCompletedAt(now),
+      updatedAt: now,
     );
-    _updateAndPersist(mutator.updateNode(_graph, updated));
+    return mutator.updateNode(graph, updated);
+  }
+
+  Iterable<String> _alternativesOf(LakshyaGraph graph, String nodeId) {
+    return graph.relationships
+        .where((r) => r.kind == RelationshipKind.alternativeTo)
+        .expand((r) sync* {
+      if (r.fromNodeId == nodeId) yield r.toNodeId;
+      if (r.toNodeId == nodeId) yield r.fromNodeId;
+    });
   }
 
   /// Adds an extra parent for an existing node.
@@ -125,6 +143,33 @@ class GraphController extends ChangeNotifier {
   /// Removes an edge by id.
   void removeEdge(String edgeId) {
     _updateAndPersist(mutator.removeEdge(_graph, edgeId));
+  }
+
+  /// Records an importance or alternative relationship between two nodes.
+  /// See [RelationshipKind] for semantics.
+  void addRelationship({
+    required String fromNodeId,
+    required String toNodeId,
+    required RelationshipKind kind,
+  }) {
+    _updateAndPersist(
+      mutator.addRelationship(
+        _graph,
+        NodeRelationship(
+          id: idGenerator.next(),
+          fromNodeId: fromNodeId,
+          toNodeId: toNodeId,
+          kind: kind,
+        ),
+      ),
+    );
+  }
+
+  /// Removes a relationship by id.
+  void removeRelationship(String relationshipId) {
+    _updateAndPersist(
+      mutator.removeRelationship(_graph, relationshipId),
+    );
   }
 
   /// Replaces the entire graph (used by "Import from JSON").

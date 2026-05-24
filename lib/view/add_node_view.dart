@@ -4,6 +4,7 @@ import '../app/graph_controller.dart';
 import '../model/activation_window.dart';
 import '../model/completion.dart';
 import '../model/contribution.dart';
+import '../model/impact.dart';
 import '../model/node_status.dart';
 
 /// UI selectors for the activation axis.
@@ -34,8 +35,6 @@ class _AddNodeViewState extends State<AddNodeView> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
-  final _priorityController = TextEditingController();
-  final _impactController = TextEditingController();
   final _periodController = TextEditingController(text: '3');
   final _nTimesController = TextEditingController(text: '1');
 
@@ -43,6 +42,7 @@ class _AddNodeViewState extends State<AddNodeView> {
   _ActivationChoice _activation = _ActivationChoice.alwaysActive;
   _CompletionChoice _completion = _CompletionChoice.oneTime;
   Contribution _contribution = Contribution.mandatory;
+  Impact? _impact;
   DateTime? _deadline;
   DateTime? _activeFrom;
   DateTime? _activeUntil;
@@ -51,8 +51,6 @@ class _AddNodeViewState extends State<AddNodeView> {
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
-    _priorityController.dispose();
-    _impactController.dispose();
     _periodController.dispose();
     _nTimesController.dispose();
     super.dispose();
@@ -96,8 +94,7 @@ class _AddNodeViewState extends State<AddNodeView> {
       description: _descriptionController.text.trim().isEmpty
           ? null
           : _descriptionController.text.trim(),
-      priority: double.tryParse(_priorityController.text),
-      positiveImpact: double.tryParse(_impactController.text),
+      impact: _impact,
       deadline: _deadline,
       contribution: _contribution,
     );
@@ -251,26 +248,20 @@ class _AddNodeViewState extends State<AddNodeView> {
               ),
             ],
             const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _priorityController,
-                    decoration: const InputDecoration(labelText: 'Priority'),
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                  ),
+            DropdownButtonFormField<Impact?>(
+              initialValue: _impact,
+              decoration: const InputDecoration(labelText: 'Impact'),
+              items: [
+                const DropdownMenuItem<Impact?>(
+                  child: Text('— not set —'),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextFormField(
-                    controller: _impactController,
-                    decoration: const InputDecoration(labelText: 'Impact'),
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                for (final level in Impact.values)
+                  DropdownMenuItem<Impact?>(
+                    value: level,
+                    child: Text(_impactLabel(level)),
                   ),
-                ),
               ],
+              onChanged: (v) => setState(() => _impact = v),
             ),
             const SizedBox(height: 16),
             _DatePickerRow(
@@ -288,6 +279,16 @@ class _AddNodeViewState extends State<AddNodeView> {
     );
   }
 }
+
+/// Display labels for the five impact levels. Kept here (not on the enum)
+/// so the model has no UI concerns.
+String _impactLabel(Impact level) => switch (level) {
+      Impact.minimal => 'Minimal',
+      Impact.low => 'Low',
+      Impact.medium => 'Medium',
+      Impact.high => 'High',
+      Impact.critical => 'Critical',
+    };
 
 String _formatDate(DateTime dt) =>
     '${dt.year.toString().padLeft(4, '0')}-'

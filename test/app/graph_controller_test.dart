@@ -3,6 +3,7 @@ import 'package:lakshya/app/graph_controller.dart';
 import 'package:lakshya/model/lakshya_graph.dart';
 import 'package:lakshya/model/node.dart';
 import 'package:lakshya/model/completion.dart';
+import 'package:lakshya/model/node_relationship.dart';
 import 'package:lakshya/model/node_status.dart';
 import 'package:lakshya/service/id_generator.dart';
 
@@ -84,6 +85,132 @@ void main() {
       final updated =
           controller.graph.nodes.single.status.completion as OneTimeCompletion;
       expect(updated.completedAt, equals(completedAt));
+    });
+
+    test(
+        'markCompleted cascades through alternativeTo relationships',
+        () async {
+      final initial = LakshyaGraph(
+        nodes: [
+          Node(
+            id: 'paper-a',
+            title: 'Paper A',
+            status: NodeStatus.oneTime(),
+            createdAt: DateTime.utc(2026, 5, 24),
+          ),
+          Node(
+            id: 'paper-b',
+            title: 'Paper B',
+            status: NodeStatus.oneTime(),
+            createdAt: DateTime.utc(2026, 5, 24),
+          ),
+          Node(
+            id: 'paper-c',
+            title: 'Paper C',
+            status: NodeStatus.oneTime(),
+            createdAt: DateTime.utc(2026, 5, 24),
+          ),
+        ],
+        edges: const [],
+        relationships: const [
+          NodeRelationship(
+            id: 'r1',
+            fromNodeId: 'paper-a',
+            toNodeId: 'paper-b',
+            kind: RelationshipKind.alternativeTo,
+          ),
+          NodeRelationship(
+            id: 'r2',
+            fromNodeId: 'paper-b',
+            toNodeId: 'paper-c',
+            kind: RelationshipKind.alternativeTo,
+          ),
+        ],
+      );
+      final completedAt = DateTime.utc(2026, 5, 24, 15);
+      final controller = GraphController(
+        initial: initial,
+        save: (_) async {},
+        idGenerator: SequentialIdGenerator(),
+        clock: () => completedAt,
+      );
+
+      controller.markCompleted('paper-a');
+
+      // The transitive cascade closes B (alternative of A) and C
+      // (alternative of B), each in a single user action.
+      for (final id in ['paper-a', 'paper-b', 'paper-c']) {
+        final completion = controller.graph.nodes
+            .firstWhere((n) => n.id == id)
+            .status
+            .completion as OneTimeCompletion;
+        expect(completion.completedAt, equals(completedAt),
+            reason: '$id should have been cascaded closed');
+      }
+    });
+
+    test(
+        'markCompleted on a background goal is a no-op (and does not cascade)',
+        () async {
+      final initial = LakshyaGraph(
+        nodes: [
+          Node(
+            id: 'root',
+            title: 'All goals achieved',
+            status: NodeStatus.alwaysOnBackground,
+            createdAt: DateTime.utc(2026, 5, 24),
+          ),
+        ],
+        edges: const [],
+      );
+      final controller = GraphController(
+        initial: initial,
+        save: (_) async {},
+        idGenerator: SequentialIdGenerator(),
+        clock: () => DateTime.utc(2026, 5, 24, 12),
+      );
+
+      controller.markCompleted('root');
+
+      expect(controller.graph, equals(initial));
+    });
+
+    test('addRelationship and removeRelationship update the graph', () async {
+      final initial = LakshyaGraph(
+        nodes: [
+          Node(
+            id: 'a',
+            title: 'A',
+            status: NodeStatus.alwaysOnBackground,
+            createdAt: DateTime.utc(2026, 5, 24),
+          ),
+          Node(
+            id: 'b',
+            title: 'B',
+            status: NodeStatus.alwaysOnBackground,
+            createdAt: DateTime.utc(2026, 5, 24),
+          ),
+        ],
+        edges: const [],
+      );
+      final controller = GraphController(
+        initial: initial,
+        save: (_) async {},
+        idGenerator: SequentialIdGenerator('id'),
+        clock: () => DateTime.utc(2026, 5, 24),
+      );
+
+      controller.addRelationship(
+        fromNodeId: 'a',
+        toNodeId: 'b',
+        kind: RelationshipKind.moreImportantThan,
+      );
+      expect(controller.graph.relationships, hasLength(1));
+      final added = controller.graph.relationships.single;
+      expect(added.kind, equals(RelationshipKind.moreImportantThan));
+
+      controller.removeRelationship(added.id);
+      expect(controller.graph.relationships, isEmpty);
     });
 
     test('replaceWith swaps the entire graph (used by JSON import)', () async {

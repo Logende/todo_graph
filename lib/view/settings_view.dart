@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../app/graph_controller.dart';
+import '../model/settings.dart';
 import '../service/graph_io.dart';
 import '../service/schema_validator.dart';
 
@@ -114,24 +115,80 @@ class _SettingsViewState extends State<SettingsView> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
-      body: ListView(
+      body: ListenableBuilder(
+        listenable: widget.controller,
+        builder: (context, _) {
+          final settings = widget.controller.graph.settings ?? const Settings();
+          return ListView(
+            children: [
+              _UrgentWindowTile(
+                value: settings.effectiveUrgentWindowDays,
+                onChanged: _setUrgentWindow,
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.copy_outlined),
+                title: const Text('Export to JSON'),
+                subtitle:
+                    const Text('Copies the full graph to your clipboard'),
+                enabled: _validator != null,
+                onTap: _validator == null ? null : _export,
+              ),
+              ListTile(
+                leading: const Icon(Icons.download_outlined),
+                title: const Text('Import from JSON'),
+                subtitle: const Text(
+                  'Validates the clipboard contents against the schema, then '
+                  'replaces the current graph',
+                ),
+                enabled: _validator != null,
+                onTap: _validator == null ? null : _import,
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _setUrgentWindow(int days) {
+    final current = widget.controller.graph.settings ?? const Settings();
+    final next = current.copyWith(urgentWindowDays: days);
+    widget.controller.replaceWith(
+      widget.controller.graph.copyWith(settings: next),
+    );
+  }
+}
+
+/// Editor for the "tasks due within N days are urgent" threshold.
+class _UrgentWindowTile extends StatelessWidget {
+  const _UrgentWindowTile({required this.value, required this.onChanged});
+
+  final int value;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: const Icon(Icons.bolt_outlined),
+      title: const Text('Urgent window'),
+      subtitle: Text(
+        'Tasks due within $value day${value == 1 ? '' : 's'} are surfaced '
+        'at the top of every list.',
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          ListTile(
-            leading: const Icon(Icons.copy_outlined),
-            title: const Text('Export to JSON'),
-            subtitle: const Text('Copies the full graph to your clipboard'),
-            enabled: _validator != null,
-            onTap: _validator == null ? null : _export,
+          IconButton(
+            icon: const Icon(Icons.remove),
+            visualDensity: VisualDensity.compact,
+            onPressed: value > 0 ? () => onChanged(value - 1) : null,
           ),
-          ListTile(
-            leading: const Icon(Icons.download_outlined),
-            title: const Text('Import from JSON'),
-            subtitle: const Text(
-              'Validates the clipboard contents against the schema, then '
-              'replaces the current graph',
-            ),
-            enabled: _validator != null,
-            onTap: _validator == null ? null : _import,
+          Text('$value', style: Theme.of(context).textTheme.titleMedium),
+          IconButton(
+            icon: const Icon(Icons.add),
+            visualDensity: VisualDensity.compact,
+            onPressed: () => onChanged(value + 1),
           ),
         ],
       ),

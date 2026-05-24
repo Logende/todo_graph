@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lakshya/model/activation_window.dart';
 import 'package:lakshya/model/completion.dart';
 import 'package:lakshya/model/contribution.dart';
+import 'package:lakshya/model/impact.dart';
+import 'package:lakshya/model/node_relationship.dart';
 import 'package:lakshya/service/asset_seed_loader.dart';
 import 'package:lakshya/service/schema_validator.dart';
 
@@ -102,13 +104,27 @@ void main() {
       expect(cooperations.status.activation, isA<BoundedActive>());
     });
 
-    test('Respond to Watzenborn has a deadline and is high-priority', () {
+    test('Respond to Watzenborn has a deadline and a high impact rating', () {
       final loader = AssetSeedLoader(validator: validator);
       final graph = loader.parse(seedJson);
       final urgent =
           graph.nodes.firstWhere((n) => n.id == 'respond-to-watzenborn');
       expect(urgent.deadline, isNotNull);
-      expect(urgent.priority, equals(9));
+      expect(urgent.impact, equals(Impact.high));
+    });
+
+    test(
+        'the two paper nodes are linked as alternatives so completing one '
+        'closes the other', () {
+      final loader = AssetSeedLoader(validator: validator);
+      final graph = loader.parse(seedJson);
+      final hasAlternative = graph.relationships.any((r) =>
+          r.kind == RelationshipKind.alternativeTo &&
+          ((r.fromNodeId == 'llm-json-schema-paper' &&
+                  r.toNodeId == 'schema-orchestrator-paper') ||
+              (r.fromNodeId == 'schema-orchestrator-paper' &&
+                  r.toNodeId == 'llm-json-schema-paper')));
+      expect(hasAlternative, isTrue);
     });
 
     test('the two paper nodes link to publish-enough-papers as helpful', () {
