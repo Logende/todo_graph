@@ -1,30 +1,39 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:lakshya/main.dart';
+import 'package:lakshya/app/graph_controller.dart';
+import 'package:lakshya/app/lakshya_app.dart';
+import 'package:lakshya/model/lakshya_graph.dart';
+import 'package:lakshya/model/node.dart';
+import 'package:lakshya/model/node_status.dart';
+import 'package:lakshya/service/id_generator.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('LakshyaApp boots to the dashboard with the built-in tiles',
+      (tester) async {
+    final graph = LakshyaGraph(
+      nodes: [
+        Node(
+          id: 'root',
+          title: 'All goals achieved',
+          status: const AlwaysOnStatus(),
+          createdAt: DateTime.utc(2026, 5, 24),
+        ),
+      ],
+      edges: const [],
+    );
+    final controller = GraphController(
+      initial: graph,
+      save: (_) async {},
+      idGenerator: SequentialIdGenerator(),
+      clock: () => DateTime.utc(2026, 5, 24),
+    );
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    await tester.pumpWidget(LakshyaApp(controller: controller));
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.text('Lakshya'), findsOneWidget);
+    expect(find.text('All ongoing'), findsOneWidget);
+    expect(find.text('All goals'), findsOneWidget);
+    expect(find.widgetWithText(FloatingActionButton, 'Add task'),
+        findsOneWidget);
   });
 }

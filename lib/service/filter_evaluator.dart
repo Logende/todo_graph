@@ -1,0 +1,65 @@
+import '../model/filter.dart';
+import '../model/lakshya_graph.dart';
+import '../model/node.dart';
+import 'graph_traversal.dart';
+
+/// Applies a [Filter] to a [LakshyaGraph] and returns the matching nodes in
+/// stable original-order.
+///
+/// The order of filter passes is deliberately progressive: ancestor scope
+/// first (narrows search), then status type / ongoing / free text (per-node
+/// predicates), and `onlyLeaves` last so leaf-ness is computed against the
+/// *filtered* subgraph rather than the whole DAG.
+class FilterEvaluator {
+  FilterEvaluator({required LakshyaGraph graph, required this.now})
+      : _graph = graph,
+        _traversal = GraphTraversal(graph);
+
+  final LakshyaGraph _graph;
+  final GraphTraversal _traversal;
+  final DateTime now;
+
+  List<Node> apply(Filter filter) {
+    Iterable<Node> candidates = _graph.nodes;
+
+    if (filter.ancestorGoalIds.isNotEmpty) {
+      final inScope = <String>{};
+      for (final goalId in filter.ancestorGoalIds) {
+        inScope.addAll(_traversal.descendantsOf(
+          goalId,
+          contribution: filter.contribution,
+        ));
+      }
+      candidates = candidates.where((n) => inScope.contains(n.id));
+    }
+
+    if (filter.statusTypes.isNotEmpty) {
+      final allowed = filter.statusTypes.toSet();
+      candidates = candidates.where((n) => allowed.contains(n.status.type));
+    }
+
+    if (filter.onlyOngoing) {
+      candidates = candidates.where((n) => n.status.isOngoingAt(now));
+    }
+
+    final freeText = filter.freeText?.trim().toLowerCase();
+    if (freeText != null && freeText.isNotEmpty) {
+      candidates = candidates.where((n) {
+        if (n.title.toLowerCase().contains(freeText)) return true;
+        final desc = n.description;
+        return desc != null && desc.toLowerCase().contains(freeText);
+      });
+    }
+
+    final list = candidates.toList(growable: false);
+
+    if (filter.onlyLeaves) {
+      final scope = list.map((n) => n.id).toSet();
+      return list
+          .where((n) => _traversal.isLeafIn(n.id, scope: scope))
+          .toList(growable: false);
+    }
+
+    return list;
+  }
+}

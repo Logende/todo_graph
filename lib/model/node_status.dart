@@ -31,6 +31,15 @@ sealed class NodeStatus extends Equatable {
 
   StatusType get type;
 
+  /// True if the node represented by this status should appear in the
+  /// "currently actionable" set at clock reading [now].
+  bool isOngoingAt(DateTime now);
+
+  /// Returns the status after the user marks the node complete at [now].
+  /// For statuses that have no completion concept (always-on) the same
+  /// instance is returned unchanged.
+  NodeStatus markCompletedAt(DateTime now);
+
   Map<String, dynamic> toJson();
 
   static NodeStatus fromJson(Map<String, dynamic> json) {
@@ -58,6 +67,12 @@ final class AlwaysOnStatus extends NodeStatus {
   StatusType get type => StatusType.alwaysOn;
 
   @override
+  bool isOngoingAt(DateTime now) => true;
+
+  @override
+  NodeStatus markCompletedAt(DateTime now) => this;
+
+  @override
   Map<String, dynamic> toJson() => {'type': type.jsonValue};
 
   @override
@@ -75,6 +90,12 @@ final class OneTimeStatus extends NodeStatus {
 
   @override
   StatusType get type => StatusType.oneTime;
+
+  @override
+  bool isOngoingAt(DateTime now) => !isCompleted;
+
+  @override
+  NodeStatus markCompletedAt(DateTime now) => OneTimeStatus(completedAt: now);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -113,6 +134,16 @@ final class NTimesStatus extends NodeStatus {
 
   @override
   StatusType get type => StatusType.nTimes;
+
+  @override
+  bool isOngoingAt(DateTime now) => !isExhausted;
+
+  @override
+  NodeStatus markCompletedAt(DateTime now) => NTimesStatus(
+        targetCount: targetCount,
+        completedCount: (completedCount + 1).clamp(0, targetCount),
+        lastCompletedAt: now,
+      );
 
   @override
   Map<String, dynamic> toJson() => {
@@ -168,6 +199,15 @@ final class PeriodicStatus extends NodeStatus {
   StatusType get type => StatusType.periodic;
 
   @override
+  bool isOngoingAt(DateTime now) => isOpenAt(now);
+
+  @override
+  NodeStatus markCompletedAt(DateTime now) => PeriodicStatus(
+        intervalDaysSinceLastCompletion: intervalDaysSinceLastCompletion,
+        lastCompletedAt: now,
+      );
+
+  @override
   Map<String, dynamic> toJson() => {
         'type': type.jsonValue,
         'intervalDaysSinceLastCompletion': intervalDaysSinceLastCompletion,
@@ -209,6 +249,16 @@ final class TemporarilyActiveStatus extends NodeStatus {
 
   @override
   StatusType get type => StatusType.temporarilyActive;
+
+  @override
+  bool isOngoingAt(DateTime now) => isActiveAt(now) && !isCompleted;
+
+  @override
+  NodeStatus markCompletedAt(DateTime now) => TemporarilyActiveStatus(
+        activeFrom: activeFrom,
+        activeUntil: activeUntil,
+        completedAt: now,
+      );
 
   @override
   Map<String, dynamic> toJson() => {

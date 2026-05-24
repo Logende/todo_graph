@@ -41,6 +41,12 @@ dependencies:
   # Runtime validator for schema/lakshya.schema.json on data load.
   json_schema: ^5.2.2
 
+  # Generates UUIDs for new node and edge ids.
+  uuid: ^4.5.3
+
+  # Resolves the per-platform app documents directory for the JSON file.
+  path_provider: ^2.1.5
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
