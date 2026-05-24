@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import '../app/graph_controller.dart';
 import '../model/activation_window.dart';
 import '../model/completion.dart';
+import '../model/contribution.dart';
 import '../model/filter.dart';
+import '../model/filter_preset.dart';
 import '../model/node.dart';
 import '../model/node_status.dart';
 import '../model/settings.dart';
@@ -13,12 +15,13 @@ import 'add_node_view.dart';
 import 'node_detail_view.dart';
 
 /// View 2 from the spec: a flat, filtered, ordered list of tasks with
-/// checkboxes for completion. This is the daily-use surface — the user lands
-/// here by tapping a dashboard tile or via "All ongoing".
+/// checkboxes for completion.
 ///
-/// The view rebuilds whenever the [controller] notifies a change, so marking
-/// a task complete (or any external change) immediately updates the list.
-class TodoListView extends StatelessWidget {
+/// The filter is held in local state (seeded from the constructor) so the
+/// user can refine it on the fly via the right-hand drawer ("Filter & save"
+/// icon in the app bar). The current refined filter can be saved as a
+/// dashboard tile via the drawer's "Save as tile" button.
+class TodoListView extends StatefulWidget {
   const TodoListView({
     super.key,
     required this.controller,
@@ -35,20 +38,43 @@ class TodoListView extends StatelessWidget {
   final DateTime Function()? nowFactory;
 
   @override
+  State<TodoListView> createState() => _TodoListViewState();
+}
+
+class _TodoListViewState extends State<TodoListView> {
+  late Filter _filter = widget.filter;
+  final _drawerKey = GlobalKey<ScaffoldState>();
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
+      key: _drawerKey,
+      appBar: AppBar(
+        title: Text(widget.title),
+        actions: [
+          IconButton(
+            tooltip: 'Filter & save',
+            icon: const Icon(Icons.tune),
+            onPressed: () => _drawerKey.currentState?.openEndDrawer(),
+          ),
+        ],
+      ),
+      endDrawer: _FilterDrawer(
+        filter: _filter,
+        onChanged: (next) => setState(() => _filter = next),
+        onSaveAsTile: _saveAsTile,
+      ),
       floatingActionButton: ListenableBuilder(
-        listenable: controller,
+        listenable: widget.controller,
         builder: (context, _) {
-          final parentId = _addParentId(controller, filter);
+          final parentId = _addParentId(widget.controller, _filter);
           if (parentId == null) return const SizedBox.shrink();
           return FloatingActionButton(
             tooltip: 'Add task',
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => AddNodeView(
-                  controller: controller,
+                  controller: widget.controller,
                   defaultParentId: parentId,
                 ),
               ),
@@ -58,22 +84,22 @@ class TodoListView extends StatelessWidget {
         },
       ),
       body: ListenableBuilder(
-        listenable: controller,
+        listenable: widget.controller,
         builder: (context, _) {
-          final now = (nowFactory ?? DateTime.now).call();
+          final now = (widget.nowFactory ?? DateTime.now).call();
           final filtered = FilterEvaluator(
-            graph: controller.graph,
+            graph: widget.controller.graph,
             now: now,
-          ).apply(filter);
+          ).apply(_filter);
           final urgentWindowDays =
-              controller.graph.settings?.effectiveUrgentWindowDays ??
+              widget.controller.graph.settings?.effectiveUrgentWindowDays ??
                   kDefaultUrgentWindowDays;
           final ordering =
               NodeOrdering(urgentWindow: Duration(days: urgentWindowDays));
           final ordered = ordering.defaultOrder(
             filtered,
             now: now,
-            relationships: controller.graph.relationships,
+            relationships: widget.controller.graph.relationships,
           );
 
           if (ordered.isEmpty) {
@@ -96,11 +122,12 @@ class TodoListView extends StatelessWidget {
               return _NodeTile(
                 node: node,
                 now: now,
-                onToggleComplete: () => controller.markCompleted(node.id),
+                onToggleComplete: () =>
+                    widget.controller.markCompleted(node.id),
                 onOpenDetail: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (_) => NodeDetailView(
-                      controller: controller,
+                      controller: widget.controller,
                       nodeId: node.id,
                     ),
                   ),
@@ -110,6 +137,79 @@ class TodoListView extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+
+  Future<void> _saveAsTile() async {
+    final title = await _promptForTileTitle(context, suggestion: widget.title);
+    if (title == null) return;
+    final preset = FilterPreset(
+      id: widget.controller.idGenerator.next(),
+      title: title,
+      filter: _filter,
+      ordering: widget.controller.graph.filterPresets.length,
+    );
+    final next = widget.controller.graph.copyWith(
+      filterPresets: [...widget.controller.graph.filterPresets, preset],
+    );
+    widget.controller.replaceWith(next);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Saved "$title" as a dashboard tile')),
+    );
+  }
+}
+
+Future<String?> _promptForTileTitle(
+  BuildContext context, {
+  required String suggestion,
+}) async {
+  final result = await showDialog<String>(
+    context: context,
+    builder: (_) => _SaveAsTileDialog(suggestion: suggestion),
+  );
+  if (result == null || result.isEmpty) return null;
+  return result;
+}
+
+class _SaveAsTileDialog extends StatefulWidget {
+  const _SaveAsTileDialog({required this.suggestion});
+  final String suggestion;
+
+  @override
+  State<_SaveAsTileDialog> createState() => _SaveAsTileDialogState();
+}
+
+class _SaveAsTileDialogState extends State<_SaveAsTileDialog> {
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.suggestion);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Save as tile'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        decoration: const InputDecoration(labelText: 'Tile title'),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () =>
+              Navigator.of(context).pop(_controller.text.trim()),
+          child: const Text('Save'),
+        ),
+      ],
     );
   }
 }
@@ -123,6 +223,193 @@ String? _addParentId(GraphController controller, Filter filter) {
   if (configured != null) return configured;
   if (controller.graph.nodes.isNotEmpty) return controller.graph.nodes.first.id;
   return null;
+}
+
+class _FilterDrawer extends StatelessWidget {
+  const _FilterDrawer({
+    required this.filter,
+    required this.onChanged,
+    required this.onSaveAsTile,
+  });
+
+  final Filter filter;
+  final ValueChanged<Filter> onChanged;
+  final Future<void> Function() onSaveAsTile;
+
+  static const _completionKinds = ['none', 'one_time', 'n_times', 'periodic'];
+  static const _activationKinds = ['always_active', 'bounded'];
+
+  @override
+  Widget build(BuildContext context) {
+    return Drawer(
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'Filter',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                children: [
+                  SwitchListTile(
+                    title: const Text('Only ongoing'),
+                    value: filter.onlyOngoing,
+                    onChanged: (v) =>
+                        onChanged(_copyFilter(onlyOngoing: v)),
+                  ),
+                  SwitchListTile(
+                    title: const Text('Only leaves'),
+                    value: filter.onlyLeaves,
+                    onChanged: (v) =>
+                        onChanged(_copyFilter(onlyLeaves: v)),
+                  ),
+                  const Divider(),
+                  ListTile(
+                    title: const Text('Contribution'),
+                    subtitle: DropdownButton<FilterContribution>(
+                      value: filter.contribution,
+                      isExpanded: true,
+                      onChanged: (v) => onChanged(
+                        _copyFilter(
+                          contribution: v ?? FilterContribution.any,
+                        ),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: FilterContribution.any,
+                          child: Text('Any'),
+                        ),
+                        DropdownMenuItem(
+                          value: FilterContribution.mandatory,
+                          child: Text('Mandatory only'),
+                        ),
+                        DropdownMenuItem(
+                          value: FilterContribution.helpful,
+                          child: Text('Helpful only'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(),
+                  _ChipMultiSelect(
+                    label: 'Completion kinds',
+                    options: _completionKinds,
+                    selected: filter.completionKinds,
+                    onChanged: (next) =>
+                        onChanged(_copyFilter(completionKinds: next)),
+                  ),
+                  const Divider(),
+                  _ChipMultiSelect(
+                    label: 'Activation kinds',
+                    options: _activationKinds,
+                    selected: filter.activationKinds,
+                    onChanged: (next) =>
+                        onChanged(_copyFilter(activationKinds: next)),
+                  ),
+                  const Divider(),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    child: TextFormField(
+                      initialValue: filter.freeText ?? '',
+                      decoration: const InputDecoration(
+                        labelText: 'Free text',
+                        prefixIcon: Icon(Icons.search),
+                      ),
+                      onChanged: (v) => onChanged(_copyFilter(freeText: v)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: FilledButton.icon(
+                icon: const Icon(Icons.bookmark_add_outlined),
+                label: const Text('Save as tile'),
+                onPressed: onSaveAsTile,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Filter _copyFilter({
+    bool? onlyOngoing,
+    bool? onlyLeaves,
+    FilterContribution? contribution,
+    List<String>? completionKinds,
+    List<String>? activationKinds,
+    String? freeText,
+  }) {
+    return Filter(
+      ancestorGoalIds: filter.ancestorGoalIds,
+      contribution: contribution ?? filter.contribution,
+      completionKinds: completionKinds ?? filter.completionKinds,
+      activationKinds: activationKinds ?? filter.activationKinds,
+      onlyOngoing: onlyOngoing ?? filter.onlyOngoing,
+      onlyLeaves: onlyLeaves ?? filter.onlyLeaves,
+      freeText: freeText ?? filter.freeText,
+    );
+  }
+}
+
+class _ChipMultiSelect extends StatelessWidget {
+  const _ChipMultiSelect({
+    required this.label,
+    required this.options,
+    required this.selected,
+    required this.onChanged,
+  });
+
+  final String label;
+  final List<String> options;
+  final List<String> selected;
+  final ValueChanged<List<String>> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            children: [
+              for (final option in options)
+                FilterChip(
+                  label: Text(option),
+                  selected: selected.contains(option),
+                  onSelected: (isSelected) {
+                    final next = [...selected];
+                    if (isSelected) {
+                      if (!next.contains(option)) next.add(option);
+                    } else {
+                      next.remove(option);
+                    }
+                    onChanged(next);
+                  },
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _NodeTile extends StatelessWidget {

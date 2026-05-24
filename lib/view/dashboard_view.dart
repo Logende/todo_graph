@@ -2,24 +2,31 @@ import 'package:flutter/material.dart';
 
 import '../app/graph_controller.dart';
 import '../model/filter.dart';
+import '../model/node.dart';
 import 'add_node_view.dart';
+import 'graph_canvas_view.dart';
 import 'settings_view.dart';
 import 'todo_list_view.dart';
 
 /// View 3 from the spec: the "Kachel" launcher. A grid of large tiles, each
-/// representing a saved filter. Tapping a tile opens [TodoListView]
-/// pre-filtered.
+/// representing a saved filter, the graph view, or a top-level life area.
+/// Tapping a list-style tile opens [TodoListView] pre-filtered; the graph
+/// tile opens [GraphCanvasView].
 ///
-/// Two built-in tiles ("All ongoing", "All goals") are always present so the
-/// app is useful before the user has created any custom presets. Any
-/// [FilterPreset] in the graph appears as an additional tile, sorted by its
-/// `ordering` field if set.
+/// Tile sources:
+/// * Two built-in tiles: "All ongoing" and "All goals".
+/// * One built-in tile for the graph view.
+/// * One auto-tile per direct child of the root goal (so "Health", "Work",
+///   "Leisure", etc. all get a dedicated tile without the user having to
+///   save a preset for them).
+/// * Any [FilterPreset] the user has saved (via the "Save as tile" button on
+///   the todo list).
 class DashboardView extends StatelessWidget {
   const DashboardView({super.key, required this.controller});
 
   final GraphController controller;
 
-  static const _builtIn = [
+  static const _alwaysOnTiles = [
     _BuiltInTile(
       title: 'All ongoing',
       icon: Icons.local_fire_department_outlined,
@@ -71,6 +78,7 @@ class DashboardView extends StatelessWidget {
       body: ListenableBuilder(
         listenable: controller,
         builder: (context, _) {
+          final rootChildren = _directChildrenOfRoot(controller);
           final presets = [...controller.graph.filterPresets]
             ..sort((a, b) => (a.ordering ?? 0).compareTo(b.ordering ?? 0));
 
@@ -82,11 +90,26 @@ class DashboardView extends StatelessWidget {
               crossAxisSpacing: 12,
               childAspectRatio: 1.4,
               children: [
-                for (final tile in _builtIn)
+                for (final tile in _alwaysOnTiles)
                   _Tile(
                     title: tile.title,
                     icon: tile.icon,
                     onTap: () => _openList(context, tile.title, tile.filter),
+                  ),
+                _Tile(
+                  title: 'Graph',
+                  icon: Icons.hub_outlined,
+                  onTap: () => _openGraph(context),
+                ),
+                for (final child in rootChildren)
+                  _Tile(
+                    title: child.title,
+                    icon: Icons.folder_outlined,
+                    onTap: () => _openList(
+                      context,
+                      child.title,
+                      Filter(ancestorGoalIds: [child.id]),
+                    ),
                   ),
                 for (final preset in presets)
                   _Tile(
@@ -113,6 +136,12 @@ class DashboardView extends StatelessWidget {
     ));
   }
 
+  void _openGraph(BuildContext context) {
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => GraphCanvasView(controller: controller),
+    ));
+  }
+
   static int _columnsForWidth(double width) {
     if (width >= 900) return 4;
     if (width >= 600) return 3;
@@ -129,6 +158,21 @@ class DashboardView extends StatelessWidget {
       return controller.graph.nodes.first.id;
     }
     return null;
+  }
+
+  static List<Node> _directChildrenOfRoot(GraphController controller) {
+    final rootId = _rootParentId(controller);
+    if (rootId == null) return const [];
+    final nodeById = {for (final n in controller.graph.nodes) n.id: n};
+    final children = <Node>[];
+    final seen = <String>{};
+    for (final edge in controller.graph.edges) {
+      if (edge.parentId != rootId) continue;
+      if (!seen.add(edge.childId)) continue;
+      final child = nodeById[edge.childId];
+      if (child != null) children.add(child);
+    }
+    return children;
   }
 }
 
