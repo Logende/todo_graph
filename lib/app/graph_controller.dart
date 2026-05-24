@@ -23,13 +23,27 @@ import '../service/id_generator.dart';
 class GraphController extends ChangeNotifier {
   GraphController({
     required LakshyaGraph initial,
-    required this.save,
+    required Future<void> Function(LakshyaGraph graph) save,
     required this.idGenerator,
     required this.clock,
     this.mutator = const GraphMutator(),
-  }) : _graph = initial;
+  })  : _graph = initial,
+        // ignore: prefer_initializing_formals
+        _save = save;
 
-  final Future<void> Function(LakshyaGraph graph) save;
+  Future<void> Function(LakshyaGraph graph) _save;
+
+  /// Persists [graph] via the currently-active save callback. Re-bindable at
+  /// runtime via [replaceSave] so the storage backend can be swapped after
+  /// boot (e.g. user opts into file-system sync on the web).
+  Future<void> save(LakshyaGraph graph) => _save(graph);
+
+  /// Swaps the persistence target. The next call to [save] (and every
+  /// controller-driven mutation thereafter) writes through [next].
+  void replaceSave(Future<void> Function(LakshyaGraph graph) next) {
+    _save = next;
+  }
+
   final IdGenerator idGenerator;
   final Clock clock;
   final GraphMutator mutator;

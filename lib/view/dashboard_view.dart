@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../app/graph_controller.dart';
+import '../app/web_file_sync_coordinator.dart';
 import '../model/filter.dart';
 import '../model/node.dart';
+import '../repository/graph_repository.dart';
 import 'add_node_view.dart';
 import 'graph_canvas_view.dart';
 import 'settings_view.dart';
@@ -22,9 +24,16 @@ import 'todo_list_view.dart';
 /// * Any [FilterPreset] the user has saved (via the "Save as tile" button on
 ///   the todo list).
 class DashboardView extends StatelessWidget {
-  const DashboardView({super.key, required this.controller});
+  const DashboardView({
+    super.key,
+    required this.controller,
+    this.webFileSync,
+    this.fallbackRepository,
+  });
 
   final GraphController controller;
+  final WebFileSyncCoordinator? webFileSync;
+  final GraphRepository? fallbackRepository;
 
   static const _alwaysOnTiles = [
     _BuiltInTile(
@@ -50,7 +59,11 @@ class DashboardView extends StatelessWidget {
             icon: const Icon(Icons.settings_outlined),
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
-                builder: (_) => SettingsView(controller: controller),
+                builder: (_) => SettingsView(
+                  controller: controller,
+                  webFileSync: webFileSync,
+                  fallbackRepository: fallbackRepository,
+                ),
               ),
             ),
           ),

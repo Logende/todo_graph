@@ -58,6 +58,7 @@ dependencies:
   # Graph layout engine for the dashboard's Graph view (Sugiyama
   # buchheim-style layered layout works well for our DAG of goals).
   graphview: ^1.5.1
+  web: ^1.1.1
 
 dev_dependencies:
   flutter_test:
