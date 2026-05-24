@@ -1,0 +1,107 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:lakshya/app/graph_controller.dart';
+import 'package:lakshya/model/lakshya_graph.dart';
+import 'package:lakshya/model/node_relationship.dart';
+import 'package:lakshya/model/node_status.dart';
+import 'package:lakshya/service/id_generator.dart';
+import 'package:lakshya/view/node_detail_view.dart';
+
+import '../support/builders.dart';
+
+GraphController _controllerWith(LakshyaGraph graph) => GraphController(
+      initial: graph,
+      save: (_) async {},
+      idGenerator: SequentialIdGenerator('id'),
+      clock: () => DateTime.utc(2026, 5, 24, 12),
+    );
+
+Future<void> _pumpDetailFor(
+  WidgetTester tester,
+  GraphController controller,
+  String nodeId,
+) async {
+  await tester.pumpWidget(MaterialApp(
+    home: NodeDetailView(controller: controller, nodeId: nodeId),
+  ));
+}
+
+void main() {
+  testWidgets('renders parents and relationships of the selected node',
+      (tester) async {
+    final graph = LakshyaGraph(
+      nodes: [
+        buildNode('root'),
+        buildNode('paper-a', title: 'Paper A', status: NodeStatus.oneTime()),
+        buildNode('paper-b', title: 'Paper B', status: NodeStatus.oneTime()),
+      ],
+      edges: [
+        buildEdge('e1', from: 'paper-a', to: 'root'),
+      ],
+      relationships: const [
+        NodeRelationship(
+          id: 'r1',
+          fromNodeId: 'paper-a',
+          toNodeId: 'paper-b',
+          kind: RelationshipKind.alternativeTo,
+        ),
+      ],
+    );
+    final controller = _controllerWith(graph);
+
+    await _pumpDetailFor(tester, controller, 'paper-a');
+
+    expect(find.text('Paper A'), findsOneWidget);
+    expect(find.text('Parents (1)'), findsOneWidget);
+    expect(find.text('root'), findsOneWidget);
+    expect(find.text('Relationships (1)'), findsOneWidget);
+    expect(find.textContaining('Paper A'), findsWidgets);
+    expect(find.textContaining('Paper B'), findsWidgets);
+  });
+
+  testWidgets('removing a relationship updates the list immediately',
+      (tester) async {
+    final graph = LakshyaGraph(
+      nodes: [buildNode('a'), buildNode('b')],
+      edges: const [],
+      relationships: const [
+        NodeRelationship(
+          id: 'r1',
+          fromNodeId: 'a',
+          toNodeId: 'b',
+          kind: RelationshipKind.moreImportantThan,
+        ),
+      ],
+    );
+    final controller = _controllerWith(graph);
+
+    await _pumpDetailFor(tester, controller, 'a');
+
+    expect(find.text('Relationships (1)'), findsOneWidget);
+    await tester.tap(find.byTooltip('Remove this relationship'));
+    await tester.pump();
+    expect(find.text('Relationships (0)'), findsOneWidget);
+    expect(controller.graph.relationships, isEmpty);
+  });
+
+  testWidgets('Delete confirmation removes the node and its edges',
+      (tester) async {
+    final graph = LakshyaGraph(
+      nodes: [buildNode('root'), buildNode('a', title: 'A')],
+      edges: [buildEdge('e1', from: 'a', to: 'root')],
+    );
+    final controller = _controllerWith(graph);
+
+    await _pumpDetailFor(tester, controller, 'a');
+
+    await tester.tap(find.byTooltip('Delete this node'));
+    await tester.pumpAndSettle();
+    expect(find.text('Delete this node?'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+    await tester.pumpAndSettle();
+
+    expect(controller.graph.nodes.any((n) => n.id == 'a'), isFalse);
+    expect(controller.graph.edges.any((e) => e.id == 'e1'), isFalse);
+  });
+}

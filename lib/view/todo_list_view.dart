@@ -10,6 +10,7 @@ import '../model/settings.dart';
 import '../service/filter_evaluator.dart';
 import '../service/node_ordering.dart';
 import 'add_node_view.dart';
+import 'node_detail_view.dart';
 
 /// View 2 from the spec: a flat, filtered, ordered list of tasks with
 /// checkboxes for completion. This is the daily-use surface — the user lands
@@ -96,6 +97,14 @@ class TodoListView extends StatelessWidget {
                 node: node,
                 now: now,
                 onToggleComplete: () => controller.markCompleted(node.id),
+                onOpenDetail: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => NodeDetailView(
+                      controller: controller,
+                      nodeId: node.id,
+                    ),
+                  ),
+                ),
               );
             },
           );
@@ -121,11 +130,13 @@ class _NodeTile extends StatelessWidget {
     required this.node,
     required this.now,
     required this.onToggleComplete,
+    required this.onOpenDetail,
   });
 
   final Node node;
   final DateTime now;
   final VoidCallback onToggleComplete;
+  final VoidCallback onOpenDetail;
 
   @override
   Widget build(BuildContext context) {
@@ -135,6 +146,7 @@ class _NodeTile extends StatelessWidget {
       title: Text(node.title),
       subtitle: subtitle == null ? null : Text(subtitle),
       trailing: _statusBadge(node.status),
+      onTap: onOpenDetail,
     );
   }
 
