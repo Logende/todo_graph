@@ -43,6 +43,27 @@ class Filter extends Equatable {
   /// Case-insensitive substring match against node title and description.
   final String? freeText;
 
+  Filter copyWith({
+    List<String>? ancestorGoalIds,
+    FilterContribution? contribution,
+    List<String>? completionKinds,
+    List<String>? activationKinds,
+    bool? onlyOngoing,
+    bool? onlyLeaves,
+    String? freeText,
+    bool clearFreeText = false,
+  }) {
+    return Filter(
+      ancestorGoalIds: ancestorGoalIds ?? this.ancestorGoalIds,
+      contribution: contribution ?? this.contribution,
+      completionKinds: completionKinds ?? this.completionKinds,
+      activationKinds: activationKinds ?? this.activationKinds,
+      onlyOngoing: onlyOngoing ?? this.onlyOngoing,
+      onlyLeaves: onlyLeaves ?? this.onlyLeaves,
+      freeText: clearFreeText ? null : (freeText ?? this.freeText),
+    );
+  }
+
   Map<String, dynamic> toJson() => {
         if (ancestorGoalIds.isNotEmpty) 'ancestorGoalIds': ancestorGoalIds,
         if (contribution != FilterContribution.any)

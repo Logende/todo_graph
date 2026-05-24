@@ -54,6 +54,20 @@ class _TodoListViewState extends State<TodoListView> {
         title: Text(widget.title),
         actions: [
           IconButton(
+            tooltip: _filter.onlyLeaves
+                ? 'Showing leaves only — tap to show everything'
+                : 'Showing everything — tap to show only leaves',
+            icon: Icon(
+              _filter.onlyLeaves
+                  ? Icons.list_alt
+                  : Icons.account_tree_outlined,
+            ),
+            isSelected: _filter.onlyLeaves,
+            onPressed: () => setState(() {
+              _filter = _filter.copyWith(onlyLeaves: !_filter.onlyLeaves);
+            }),
+          ),
+          IconButton(
             tooltip: 'Filter & save',
             icon: const Icon(Icons.tune),
             onPressed: () => _drawerKey.currentState?.openEndDrawer(),
@@ -292,13 +306,17 @@ class _FilterDrawer extends StatelessWidget {
                     title: const Text('Only ongoing'),
                     value: filter.onlyOngoing,
                     onChanged: (v) =>
-                        onChanged(_copyFilter(onlyOngoing: v)),
+                        onChanged(filter.copyWith(onlyOngoing: v)),
                   ),
                   SwitchListTile(
                     title: const Text('Only leaves'),
+                    subtitle: const Text(
+                      'Hide intermediate goals; show only the lowest-level '
+                      'actionable tasks.',
+                    ),
                     value: filter.onlyLeaves,
                     onChanged: (v) =>
-                        onChanged(_copyFilter(onlyLeaves: v)),
+                        onChanged(filter.copyWith(onlyLeaves: v)),
                   ),
                   const Divider(),
                   ListTile(
