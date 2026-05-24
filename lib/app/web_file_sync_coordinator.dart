@@ -44,6 +44,20 @@ class WebFileSyncCoordinator extends ChangeNotifier {
     return true;
   }
 
+  /// Opens the "open file" picker so the user points at an existing JSON
+  /// file. The file's contents replace the in-memory graph and every
+  /// subsequent save goes back to that file. Returns true when a file was
+  /// picked, false on cancel, and rethrows validation errors (caller decides
+  /// how to surface them).
+  Future<bool> startSyncFromExistingFile() async {
+    final repository = await fileSync.openFileAsBackingStore(
+      validator: validator,
+    );
+    if (repository == null) return false;
+    await _adoptRepository(repository, seedWithCurrentGraph: false);
+    return true;
+  }
+
   /// Disconnects the file sync. The on-disk file is left untouched; future
   /// saves go through [fallback].
   Future<void> stopSync({required GraphRepository fallback}) async {

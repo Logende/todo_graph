@@ -21,6 +21,11 @@ class WebGraphFileSync {
   }) async =>
       null;
 
+  Future<GraphRepository?> openFileAsBackingStore({
+    required SchemaValidator validator,
+  }) async =>
+      null;
+
   Future<void> forget() async {}
 
   Future<String?> currentFileName() async => null;

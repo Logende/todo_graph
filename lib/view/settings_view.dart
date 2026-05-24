@@ -325,6 +325,18 @@ class _WebFileSyncSection extends StatelessWidget {
     }
   }
 
+  Future<void> _openExisting() async {
+    try {
+      final connected = await coordinator.startSyncFromExistingFile();
+      onMessage(connected
+          ? 'Loaded ${coordinator.currentFileName ?? "the picked file"} and '
+              'now syncing to it'
+          : 'File pick was cancelled');
+    } catch (e) {
+      await onError('Could not open file', e.toString());
+    }
+  }
+
   Future<void> _disconnect() async {
     final fallback = fallbackRepository;
     if (fallback == null) {
@@ -365,13 +377,21 @@ class _WebFileSyncSection extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Wrap(
                 spacing: 8,
+                runSpacing: 8,
                 children: [
                   FilledButton.icon(
                     icon: const Icon(Icons.save_outlined),
                     label: Text(active
-                        ? 'Pick a different file'
-                        : 'Sync to a file…'),
+                        ? 'Save to a different file…'
+                        : 'Save current graph to a file…'),
                     onPressed: _connect,
+                  ),
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.file_open_outlined),
+                    label: Text(active
+                        ? 'Open a different existing file…'
+                        : 'Open existing file and sync…'),
+                    onPressed: _openExisting,
                   ),
                   if (active)
                     OutlinedButton.icon(

@@ -58,15 +58,34 @@ class WebGraphFileSync {
     );
   }
 
-  /// Opens a "save file" dialog so the user picks a new or existing file to
-  /// use as the backing store. The handle is persisted in IndexedDB for the
-  /// next session. Returns null when the user cancels.
+  /// Opens a "save file" dialog so the user picks a new file (or replaces an
+  /// existing one) to use as the backing store. The handle is persisted in
+  /// IndexedDB for the next session. Returns null when the user cancels.
   Future<GraphRepository?> pickFileAsBackingStore({
     required SchemaValidator validator,
     required String suggestedName,
   }) async {
     if (!isSupported) return null;
     final handle = await _showSaveFilePicker(suggestedName);
+    if (handle == null) return null;
+    final state = await _ensurePermission(handle, prompt: true);
+    if (state != 'granted') return null;
+    await _storeHandle(handle);
+    return _FileSystemAccessGraphRepository(
+      handle: handle,
+      validator: validator,
+    );
+  }
+
+  /// Opens an "open file" dialog so the user picks an EXISTING file to load
+  /// from. The file's current contents replace the in-memory graph (caller's
+  /// responsibility — coordinator handles it), and the handle is persisted
+  /// so subsequent saves go to that same file.
+  Future<GraphRepository?> openFileAsBackingStore({
+    required SchemaValidator validator,
+  }) async {
+    if (!isSupported) return null;
+    final handle = await _showOpenFilePicker();
     if (handle == null) return null;
     final state = await _ensurePermission(handle, prompt: true);
     if (state != 'granted') return null;
@@ -93,14 +112,33 @@ class WebGraphFileSync {
     }
   }
 
-  JSObject _buildPickerOptions({required String suggestedName}) {
+  Future<JSObject?> _showOpenFilePicker() async {
+    final options = _buildPickerOptions();
+    options.setProperty('multiple'.toJS, false.toJS);
+    try {
+      final result = await web.window
+          .callMethod<JSPromise<JSAny?>>('showOpenFilePicker'.toJS, options)
+          .toDart;
+      // showOpenFilePicker resolves to an array of handles (even with
+      // multiple:false); we want the first one.
+      final list = result as JSArray<JSAny?>?;
+      if (list == null || list.length == 0) return null;
+      return list[0] as JSObject?;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  JSObject _buildPickerOptions({String? suggestedName}) {
     final accept = JSObject();
     accept.setProperty('application/json'.toJS, ['.json'.toJS].toJS);
     final type = JSObject();
     type.setProperty('description'.toJS, 'JSON'.toJS);
     type.setProperty('accept'.toJS, accept);
     final options = JSObject();
-    options.setProperty('suggestedName'.toJS, suggestedName.toJS);
+    if (suggestedName != null) {
+      options.setProperty('suggestedName'.toJS, suggestedName.toJS);
+    }
     options.setProperty('types'.toJS, [type].toJS);
     return options;
   }
