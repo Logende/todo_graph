@@ -563,6 +563,7 @@ class _NodeEditorDialog extends StatefulWidget {
 }
 
 class _NodeEditorDialogState extends State<_NodeEditorDialog> {
+  final _formKey = GlobalKey<FormState>();
   late final TextEditingController _titleController =
       TextEditingController(text: widget.initial.title);
   late final TextEditingController _descriptionController =
@@ -653,7 +654,8 @@ class _NodeEditorDialogState extends State<_NodeEditorDialog> {
         if (existing is OneTimeCompletion) return existing;
         return const OneTimeCompletion();
       case _CompletionChoice.nTimes:
-        final target = int.tryParse(_nTimesController.text) ?? 1;
+        // The form validator gates submit on this being a positive int.
+        final target = int.parse(_nTimesController.text);
         final existing = widget.initial.status.completion;
         final completedCount =
             existing is NTimesCompletion ? existing.completedCount : 0;
@@ -665,7 +667,7 @@ class _NodeEditorDialogState extends State<_NodeEditorDialog> {
           lastCompletedAt: lastCompletedAt,
         );
       case _CompletionChoice.periodic:
-        final days = int.tryParse(_periodController.text) ?? 3;
+        final days = int.parse(_periodController.text);
         final existing = widget.initial.status.completion;
         final lastCompletedAt = existing is PeriodicCompletion
             ? existing.lastCompletedAt
@@ -677,9 +679,20 @@ class _NodeEditorDialogState extends State<_NodeEditorDialog> {
     }
   }
 
+  /// Validator used by the n-times / periodic numeric fields. Returns null
+  /// on success, or an error string to show inline.
+  String? _validatePositiveInt(String? raw) {
+    final trimmed = raw?.trim() ?? '';
+    if (trimmed.isEmpty) return 'Required';
+    final parsed = int.tryParse(trimmed);
+    if (parsed == null) return 'Must be a whole number';
+    if (parsed < 1) return 'Must be at least 1';
+    return null;
+  }
+
   void _submit() {
+    if (!_formKey.currentState!.validate()) return;
     final title = _titleController.text.trim();
-    if (title.isEmpty) return;
     final now = DateTime.now();
     final description = _descriptionController.text.trim();
     final status = NodeStatus(
@@ -745,22 +758,27 @@ class _NodeEditorDialogState extends State<_NodeEditorDialog> {
       title: const Text('Edit node'),
       content: SizedBox(
         width: 440,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              TextField(
-                controller: _titleController,
-                autofocus: true,
-                decoration: const InputDecoration(labelText: 'Title'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _descriptionController,
-                maxLines: 3,
-                decoration: const InputDecoration(labelText: 'Description'),
-              ),
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextFormField(
+                  controller: _titleController,
+                  autofocus: true,
+                  decoration: const InputDecoration(labelText: 'Title'),
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'Title is required'
+                      : null,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _descriptionController,
+                  maxLines: 3,
+                  decoration: const InputDecoration(labelText: 'Description'),
+                ),
               const SizedBox(height: 20),
               _SectionLabel('Activation'),
               DropdownButtonFormField<_ActivationChoice>(
@@ -828,21 +846,23 @@ class _NodeEditorDialogState extends State<_NodeEditorDialog> {
               ),
               if (_completion == _CompletionChoice.nTimes) ...[
                 const SizedBox(height: 8),
-                TextField(
+                TextFormField(
                   controller: _nTimesController,
                   decoration:
                       const InputDecoration(labelText: 'Target count'),
                   keyboardType: TextInputType.number,
+                  validator: _validatePositiveInt,
                 ),
               ],
               if (_completion == _CompletionChoice.periodic) ...[
                 const SizedBox(height: 8),
-                TextField(
+                TextFormField(
                   controller: _periodController,
                   decoration: const InputDecoration(
                     labelText: 'Interval (days since last completion)',
                   ),
                   keyboardType: TextInputType.number,
+                  validator: _validatePositiveInt,
                 ),
               ],
               const SizedBox(height: 20),
@@ -886,7 +906,8 @@ class _NodeEditorDialogState extends State<_NodeEditorDialog> {
                   ],
                 ),
               ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

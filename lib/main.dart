@@ -25,9 +25,6 @@ Future<void> main() async {
   final fileSync = const WebGraphFileSync();
   final fallback = await _buildFallbackRepository(validator);
 
-  // On web, prefer a previously-picked File System Access handle when one
-  // is still permissioned. The on-disk file survives browser data wipes
-  // (only the handle gets cleared), so this is the safe-by-default path.
   GraphRepository repository = fallback;
   GraphRepository? webFileRepository;
   String? restoredFileName;
@@ -40,12 +37,12 @@ Future<void> main() async {
     }
   }
 
-  final initialGraph = await _loadOrBootstrapGraph(
+  final bootstrap = await _loadOrBootstrapGraph(
     repository: repository,
     validator: validator,
   );
   final controller = GraphController(
-    initial: initialGraph,
+    initial: bootstrap.graph,
     save: repository.save,
     idGenerator: UuidV4IdGenerator(),
     clock: DateTime.now,
@@ -61,6 +58,7 @@ Future<void> main() async {
     controller: controller,
     webFileSync: coordinator,
     fallbackRepository: fallback,
+    recoveryNotice: bootstrap.recoveryNotice,
   ));
 }
 
@@ -87,19 +85,63 @@ Future<GraphRepository> _buildFallbackRepository(
   );
 }
 
-Future<LakshyaGraph> _loadOrBootstrapGraph({
+/// Result of the first-run bootstrap: the graph to hand the controller, plus
+/// an optional notice the app should surface (e.g. "your file was corrupt;
+/// we backed it up and loaded the example seed instead").
+class _BootstrapResult {
+  const _BootstrapResult({required this.graph, this.recoveryNotice});
+  final LakshyaGraph graph;
+  final String? recoveryNotice;
+}
+
+Future<_BootstrapResult> _loadOrBootstrapGraph({
   required GraphRepository repository,
   required SchemaValidator validator,
 }) async {
   try {
     final loaded = await repository.load();
-    if (loaded != null) return loaded;
-  } on SchemaValidationException {
-    // Pre-release: no migration path. Fall through to a fresh seed.
+    if (loaded != null) return _BootstrapResult(graph: loaded);
+  } on SchemaValidationException catch (e) {
+    // Don't overwrite the broken file — back it up to the side first so the
+    // user can hand-recover, then load the example seed for the session.
+    final backupPath = await _backupCorruptedRepository(repository);
+    final seed = await _loadSeedFromAsset(validator: validator);
+    return _BootstrapResult(
+      graph: seed,
+      recoveryNotice: backupPath != null
+          ? 'Your saved graph failed validation. The original was preserved '
+              'at $backupPath and the example seed was loaded for now.\n\n'
+              'Details: ${e.errors.take(2).join("; ")}'
+          : 'Your saved graph failed validation; loaded the example seed '
+              'instead. The original was left untouched.',
+    );
   }
+  // Either there was no saved graph or load returned null — first run.
   final seed = await _loadSeedFromAsset(validator: validator);
   await repository.save(seed);
-  return seed;
+  return _BootstrapResult(graph: seed);
+}
+
+Future<String?> _backupCorruptedRepository(GraphRepository repository) async {
+  if (repository is! LocalFileGraphRepository) {
+    // Web / preference-backed storage: there's no on-disk path to rename.
+    // The caller will fall back to the seed but not save it, so the broken
+    // store is left alone.
+    return null;
+  }
+  final live = repository.file;
+  if (!await live.exists()) return null;
+  final timestamp = DateTime.now()
+      .toIso8601String()
+      .replaceAll(':', '-')
+      .replaceAll('.', '-');
+  final backup = File('${live.path}.broken-$timestamp');
+  try {
+    await live.rename(backup.path);
+    return backup.path;
+  } catch (_) {
+    return null;
+  }
 }
 
 Future<LakshyaGraph> _loadSeedFromAsset({

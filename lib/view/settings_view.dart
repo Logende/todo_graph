@@ -92,12 +92,17 @@ class _SettingsViewState extends State<SettingsView> {
     final pickPath = widget.pickExportPath ?? _defaultPickExportPath;
     final path = await pickPath(_suggestedExportFileName());
     if (path == null || path.trim().isEmpty) return;
-    await DesktopGraphFileIo(graphIo: GraphIo(validator: validator))
-        .exportToFile(graph: widget.controller.graph, path: path);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Graph exported to $path')),
-    );
+    try {
+      await DesktopGraphFileIo(graphIo: GraphIo(validator: validator))
+          .exportToFile(graph: widget.controller.graph, path: path);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Graph exported to $path')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      await _showErrorDialog('Export failed', e.toString());
+    }
   }
 
   Future<void> _import() async {
@@ -114,6 +119,12 @@ class _SettingsViewState extends State<SettingsView> {
     }
     try {
       final imported = GraphIo(validator: validator).importFromJson(text);
+      if (!mounted) return;
+      final confirmed = await _confirmReplaceCurrentGraph(
+        imported: imported,
+        source: 'clipboard',
+      );
+      if (!confirmed || !mounted) return;
       widget.controller.replaceWith(imported);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -128,6 +139,9 @@ class _SettingsViewState extends State<SettingsView> {
     } on FormatException catch (e) {
       if (!mounted) return;
       await _showErrorDialog('Import rejected: malformed JSON', e.message);
+    } catch (e) {
+      if (!mounted) return;
+      await _showErrorDialog('Import failed', e.toString());
     }
   }
 
@@ -141,6 +155,12 @@ class _SettingsViewState extends State<SettingsView> {
       final imported = await DesktopGraphFileIo(
         graphIo: GraphIo(validator: validator),
       ).importFromFile(path);
+      if (!mounted) return;
+      final confirmed = await _confirmReplaceCurrentGraph(
+        imported: imported,
+        source: path,
+      );
+      if (!confirmed || !mounted) return;
       widget.controller.replaceWith(imported);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -155,7 +175,45 @@ class _SettingsViewState extends State<SettingsView> {
     } on FormatException catch (e) {
       if (!mounted) return;
       await _showErrorDialog('Import rejected: malformed JSON', e.message);
+    } catch (e) {
+      // FileSystemException, permission denied, etc.
+      if (!mounted) return;
+      await _showErrorDialog('Import failed', e.toString());
     }
+  }
+
+  Future<bool> _confirmReplaceCurrentGraph({
+    required dynamic imported,
+    required String source,
+  }) async {
+    final currentNodes = widget.controller.graph.nodes.length;
+    final currentEdges = widget.controller.graph.edges.length;
+    final incomingNodes = imported.nodes.length as int;
+    final incomingEdges = imported.edges.length as int;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Replace current graph?'),
+        content: Text(
+          'This permanently replaces your current graph '
+          '($currentNodes nodes, $currentEdges edges) with the content from '
+          '$source ($incomingNodes nodes, $incomingEdges edges).\n\n'
+          'Consider exporting the current graph first if you want to keep '
+          'a backup.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.tonal(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Replace'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
   }
 
   Future<String?> _defaultPickExportPath(String suggestedName) async {

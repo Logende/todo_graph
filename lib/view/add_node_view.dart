@@ -112,14 +112,26 @@ class _AddNodeViewState extends State<AddNodeView> {
     return switch (_completion) {
       _CompletionChoice.none => null,
       _CompletionChoice.oneTime => const OneTimeCompletion(),
+      // _validatePositiveInt has already gated the submit on these fields
+      // being valid positive integers, so int.parse is safe here.
       _CompletionChoice.nTimes => NTimesCompletion(
-          targetCount: int.tryParse(_nTimesController.text) ?? 1,
+          targetCount: int.parse(_nTimesController.text),
         ),
       _CompletionChoice.periodic => PeriodicCompletion(
-          intervalDaysSinceLastCompletion:
-              int.tryParse(_periodController.text) ?? 3,
+          intervalDaysSinceLastCompletion: int.parse(_periodController.text),
         ),
     };
+  }
+
+  /// Returns null when the text is a positive integer; otherwise the
+  /// validator message. Used as a TextFormField.validator.
+  static String? _validatePositiveInt(String? raw) {
+    final trimmed = raw?.trim() ?? '';
+    if (trimmed.isEmpty) return 'Required';
+    final parsed = int.tryParse(trimmed);
+    if (parsed == null) return 'Must be a whole number';
+    if (parsed < 1) return 'Must be at least 1';
+    return null;
   }
 
   void _submit() {
@@ -284,6 +296,7 @@ class _AddNodeViewState extends State<AddNodeView> {
                 controller: _nTimesController,
                 decoration: const InputDecoration(labelText: 'Target count'),
                 keyboardType: TextInputType.number,
+                validator: _validatePositiveInt,
               ),
             ],
             if (_completion == _CompletionChoice.periodic) ...[
@@ -294,6 +307,7 @@ class _AddNodeViewState extends State<AddNodeView> {
                   labelText: 'Interval (days since last completion)',
                 ),
                 keyboardType: TextInputType.number,
+                validator: _validatePositiveInt,
               ),
             ],
             const SizedBox(height: 24),

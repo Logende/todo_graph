@@ -245,9 +245,26 @@ class GraphController extends ChangeNotifier {
     _updateAndPersist(incoming);
   }
 
+  /// Broadcasts every error thrown by the [save] callback. The UI listens
+  /// and surfaces them as a SnackBar / banner so the user finds out
+  /// persistence failed instead of silently losing data.
+  Stream<Object> get saveErrors => _saveErrors.stream;
+  final StreamController<Object> _saveErrors =
+      StreamController<Object>.broadcast();
+
+  @override
+  void dispose() {
+    _saveErrors.close();
+    super.dispose();
+  }
+
   void _updateAndPersist(LakshyaGraph next) {
     _graph = next;
     notifyListeners();
-    unawaited(save(next));
+    // Don't await: keep the UI responsive. We do want to know about errors,
+    // so catch and broadcast them via [saveErrors] instead of dropping them.
+    unawaited(save(next).catchError((Object error, StackTrace _) {
+      _saveErrors.add(error);
+    }));
   }
 }
