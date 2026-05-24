@@ -1,0 +1,301 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lakshya.app/schema/lakshya.schema.json",
+  "title": "LakshyaGraph",
+  "description": "Full Lakshya graph document. A single JSON file stored in the app data directory holding every node, every edge, every manual priority pin, every dashboard filter preset, and global settings.",
+  "type": "object",
+  "required": ["schemaVersion", "nodes", "edges"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Schema version of this document. Bumped on breaking changes so the repository layer can run migrations."
+    },
+    "nodes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Node" }
+    },
+    "edges": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Edge" }
+    },
+    "priorityPins": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/PriorityPin" }
+    },
+    "filterPresets": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/FilterPreset" }
+    },
+    "settings": { "$ref": "#/$defs/Settings" }
+  },
+  "$defs": {
+    "Node": {
+      "type": "object",
+      "required": ["id", "title", "status", "createdAt"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "title": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "status": { "$ref": "#/$defs/NodeStatus" },
+        "priority": {
+          "type": "number",
+          "description": "User-assigned priority score. Higher ranks earlier in the default ordering."
+        },
+        "positiveImpact": {
+          "type": "number",
+          "description": "User-assigned positive impact estimate. Combined with priority for the default ordering."
+        },
+        "deadline": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Hard deadline for this node. Drives deadline reminders."
+        },
+        "attachments": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Attachment" }
+        },
+        "notificationOverride": { "$ref": "#/$defs/NodeNotificationSettings" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "NodeStatus": {
+      "description": "Discriminated union of status kinds. The 'type' field selects the variant.",
+      "oneOf": [
+        { "$ref": "#/$defs/StatusAlwaysOn" },
+        { "$ref": "#/$defs/StatusOneTime" },
+        { "$ref": "#/$defs/StatusNTimes" },
+        { "$ref": "#/$defs/StatusPeriodic" },
+        { "$ref": "#/$defs/StatusTemporarilyActive" }
+      ]
+    },
+    "StatusAlwaysOn": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "description": "Background goal with no completion state. Used for top-level life areas like 'Health' or 'Work'.",
+      "properties": {
+        "type": { "const": "always_on" }
+      }
+    },
+    "StatusOneTime": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "description": "Task that is completed exactly once and then permanently done.",
+      "properties": {
+        "type": { "const": "one_time" },
+        "completedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Absent while open; set on completion."
+        }
+      }
+    },
+    "StatusNTimes": {
+      "type": "object",
+      "required": ["type", "targetCount"],
+      "additionalProperties": false,
+      "description": "Task that must be completed a fixed number of times. Tracks remaining completions.",
+      "properties": {
+        "type": { "const": "n_times" },
+        "targetCount": { "type": "integer", "minimum": 1 },
+        "completedCount": { "type": "integer", "minimum": 0 },
+        "lastCompletedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "StatusPeriodic": {
+      "type": "object",
+      "required": ["type", "intervalDaysSinceLastCompletion"],
+      "additionalProperties": false,
+      "description": "Task that re-opens a fixed number of days AFTER the last completion. Completing late pushes the next due date forward; the cadence is relative, not absolute.",
+      "properties": {
+        "type": { "const": "periodic" },
+        "intervalDaysSinceLastCompletion": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Days to wait after a completion before this task is considered open again."
+        },
+        "lastCompletedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Absent if never completed (task is open immediately)."
+        }
+      }
+    },
+    "StatusTemporarilyActive": {
+      "type": "object",
+      "required": ["type", "activeFrom", "activeUntil"],
+      "additionalProperties": false,
+      "description": "Task or goal that is only active during a bounded time window. Outside the window it is inactive regardless of completion.",
+      "properties": {
+        "type": { "const": "temporarily_active" },
+        "activeFrom": { "type": "string", "format": "date-time" },
+        "activeUntil": { "type": "string", "format": "date-time" },
+        "completedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Attachment": {
+      "description": "Discriminated union of attachment kinds linked to a node.",
+      "oneOf": [
+        { "$ref": "#/$defs/AttachmentUrl" },
+        { "$ref": "#/$defs/AttachmentGeoLocation" },
+        { "$ref": "#/$defs/AttachmentTimeTrigger" }
+      ]
+    },
+    "AttachmentUrl": {
+      "type": "object",
+      "required": ["type", "url"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "url" },
+        "url": { "type": "string", "format": "uri" },
+        "label": { "type": "string" }
+      }
+    },
+    "AttachmentGeoLocation": {
+      "type": "object",
+      "required": ["type", "latitude", "longitude"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "geo_location" },
+        "latitude": { "type": "number", "minimum": -90, "maximum": 90 },
+        "longitude": { "type": "number", "minimum": -180, "maximum": 180 },
+        "label": { "type": "string" }
+      }
+    },
+    "AttachmentTimeTrigger": {
+      "type": "object",
+      "required": ["type", "triggerAt"],
+      "additionalProperties": false,
+      "description": "Fires a reminder at the given moment, independent of any deadline on the node.",
+      "properties": {
+        "type": { "const": "time_trigger" },
+        "triggerAt": { "type": "string", "format": "date-time" },
+        "label": { "type": "string" }
+      }
+    },
+    "NodeNotificationSettings": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Per-node override of the global notification defaults. Unset fields fall back to global Settings.",
+      "properties": {
+        "deadlineLeadTimeHours": { "type": "integer", "minimum": 0 },
+        "notifyOnPeriodicReopen": { "type": "boolean" }
+      }
+    },
+    "Edge": {
+      "type": "object",
+      "required": ["id", "childId", "parentId", "contribution"],
+      "additionalProperties": false,
+      "description": "Directed contribution from a child node to a parent goal. A node can have many parents; the same child appears in multiple edges.",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "childId": {
+          "type": "string",
+          "format": "uuid",
+          "description": "The lower-level node that contributes upward."
+        },
+        "parentId": {
+          "type": "string",
+          "format": "uuid",
+          "description": "The higher-level goal being contributed to."
+        },
+        "contribution": {
+          "type": "string",
+          "enum": ["mandatory", "helpful"],
+          "description": "Mandatory: parent is not fulfillable without this child. Helpful: child assists but is not required."
+        }
+      }
+    },
+    "PriorityPin": {
+      "type": "object",
+      "required": ["higherId", "lowerId"],
+      "additionalProperties": false,
+      "description": "Hard manual override declaring one node ranks above another, regardless of priority/impact scores.",
+      "properties": {
+        "higherId": { "type": "string", "format": "uuid" },
+        "lowerId": { "type": "string", "format": "uuid" }
+      }
+    },
+    "FilterPreset": {
+      "type": "object",
+      "required": ["id", "title", "filter"],
+      "additionalProperties": false,
+      "description": "Dashboard tile. Tapping the tile opens a list or graph view pre-filtered by this filter.",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "title": { "type": "string", "minLength": 1 },
+        "iconName": {
+          "type": "string",
+          "description": "Optional Material icon name for the tile face."
+        },
+        "ordering": {
+          "type": "integer",
+          "description": "Sort order of tiles in the dashboard."
+        },
+        "filter": { "$ref": "#/$defs/Filter" }
+      }
+    },
+    "Filter": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Composable filter spec used by the graph view, the todo list view, and dashboard tiles.",
+      "properties": {
+        "ancestorGoalIds": {
+          "type": "array",
+          "items": { "type": "string", "format": "uuid" },
+          "description": "Keep only nodes that are descendants of at least one of these goals."
+        },
+        "contribution": {
+          "type": "string",
+          "enum": ["any", "mandatory", "helpful"],
+          "description": "Restrict to incoming edges of this contribution kind when computing descendants."
+        },
+        "statusTypes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["always_on", "one_time", "n_times", "periodic", "temporarily_active"]
+          },
+          "description": "Keep only nodes whose status type is one of these."
+        },
+        "onlyOngoing": {
+          "type": "boolean",
+          "description": "Keep only currently-actionable nodes: one_time not completed, n_times with completedCount < targetCount, periodic past its next due date, temporarily_active inside its window and not completed."
+        },
+        "onlyLeaves": {
+          "type": "boolean",
+          "description": "Keep only nodes that are leaves within the filtered subgraph."
+        },
+        "freeText": {
+          "type": "string",
+          "description": "Case-insensitive substring match against node title and description."
+        }
+      }
+    },
+    "Settings": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "defaultDeadlineLeadTimeHours": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Default hours before a deadline at which a reminder fires. Nodes may override via notificationOverride."
+        },
+        "notifyOnPeriodicReopenByDefault": {
+          "type": "boolean",
+          "description": "Whether a notification fires when a periodic task becomes open again, unless the node overrides it."
+        },
+        "rootNodeId": {
+          "type": "string",
+          "format": "uuid",
+          "description": "ID of the 'all goals achieved' top-level node. The graph engine treats this as the universal ancestor when computing descendant filters with no ancestorGoalIds set."
+        }
+      }
+    }
+  }
+}
