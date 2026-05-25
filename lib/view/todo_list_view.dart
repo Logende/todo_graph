@@ -155,6 +155,14 @@ class _TodoListViewState extends State<TodoListView> {
                 _handleReorder(hierarchy, oldIndex, newIndex),
             itemBuilder: (context, index) {
               final row = hierarchy[index];
+              final parentId = _parentIdFromPath(row.pathId);
+              final edgeContribution = parentId == null
+                  ? null
+                  : widget.controller.graph.edges
+                      .where((e) =>
+                          e.childId == row.node.id && e.parentId == parentId)
+                      .firstOrNull
+                      ?.contribution;
               return _NodeTile(
                 key: ValueKey('row-${row.pathId}'),
                 index: index,
@@ -162,7 +170,8 @@ class _TodoListViewState extends State<TodoListView> {
                 depth: row.depth,
                 now: now,
                 queries: queries,
-                currentParentId: _parentIdFromPath(row.pathId),
+                currentParentId: parentId,
+                edgeContribution: edgeContribution,
                 isTreeMode: isTreeMode,
                 isCollapsed: collapsedNodeIds.contains(row.node.id),
                 isExpandable: expandablePathIds.contains(row.pathId),
@@ -170,8 +179,8 @@ class _TodoListViewState extends State<TodoListView> {
                 onMoveToParent: (currentParentId) =>
                     _moveNodeToParent(row.node, currentParentId),
                 onSetCompleted: (isCompleted) =>
-                    widget.controller.setCompleted(
-                  row.node.id,
+                    _setCompletedWithUndo(
+                  row.node,
                   isCompleted: isCompleted,
                 ),
                 onOpenDetail: () => Navigator.of(context).push(
@@ -189,6 +198,28 @@ class _TodoListViewState extends State<TodoListView> {
         },
       ),
     );
+  }
+
+  void _setCompletedWithUndo(Node node, {required bool isCompleted}) {
+    widget.controller.setCompleted(node.id, isCompleted: isCompleted);
+    final message = isCompleted
+        ? '"${node.title}" completed'
+        : '"${node.title}" reopened';
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(
+            label: 'Undo',
+            onPressed: () => widget.controller.setCompleted(
+              node.id,
+              isCompleted: !isCompleted,
+            ),
+          ),
+        ),
+      );
   }
 
   void _toggleCollapsed(String nodeId) {
@@ -685,6 +716,7 @@ class _NodeTile extends StatelessWidget {
     required this.now,
     required this.queries,
     required this.currentParentId,
+    required this.edgeContribution,
     required this.isTreeMode,
     required this.isCollapsed,
     required this.isExpandable,
@@ -701,6 +733,7 @@ class _NodeTile extends StatelessWidget {
   final DateTime now;
   final NodeQueries queries;
   final String? currentParentId;
+  final Contribution? edgeContribution;
   final bool isTreeMode;
   final bool isCollapsed;
   final bool isExpandable;
@@ -715,15 +748,30 @@ class _NodeTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final subtitle = _subtitleFor(node, now);
+    final scheme = Theme.of(context).colorScheme;
+    // Thin left accent: primary for mandatory, outline-variant for helpful,
+    // transparent for root-level (no parent edge).
+    final borderColor = switch (edgeContribution) {
+      Contribution.mandatory => scheme.primary,
+      Contribution.helpful => scheme.outlineVariant,
+      null => Colors.transparent,
+    };
     return Material(
-      // Material wrapper so the row keeps its background while being dragged
-      // by ReorderableListView (which lifts it into an Overlay).
       color: Colors.transparent,
-      child: ListTile(
-        contentPadding: EdgeInsets.only(
-          left: 4 + depth * _indentPerLevel,
-          right: 4,
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(
+            left: BorderSide(
+              color: borderColor,
+              width: edgeContribution != null ? 3 : 0,
+            ),
+          ),
         ),
+        child: ListTile(
+          contentPadding: EdgeInsets.only(
+            left: 4 + depth * _indentPerLevel,
+            right: 4,
+          ),
         leading: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -781,6 +829,7 @@ class _NodeTile extends StatelessWidget {
           ],
         ),
         onTap: onOpenDetail,
+        ),
       ),
     );
   }

@@ -411,14 +411,20 @@ class _WebFileSyncSection extends StatelessWidget {
   final ValueChanged<String> onMessage;
   final Future<void> Function(String title, String body) onError;
 
-  Future<void> _connect() async {
+  Future<void> _connectNewFile({bool explainCloudFlow = false}) async {
     try {
       final connected = await coordinator.startSyncToNewFile(
         suggestedName: suggestedFileName,
       );
-      onMessage(connected
-          ? 'Now syncing to ${coordinator.currentFileName ?? "the picked file"}'
-          : 'File pick was cancelled');
+      if (!connected) {
+        onMessage('File pick was cancelled');
+        return;
+      }
+      final file = coordinator.currentFileName ?? 'the picked file';
+      onMessage(explainCloudFlow
+          ? 'Now syncing to $file. If it lives in a cloud-synced folder, '
+              'your cloud service will mirror it too.'
+          : 'Now syncing to $file');
     } catch (e) {
       await onError('Could not start file sync', e.toString());
     }
@@ -449,6 +455,34 @@ class _WebFileSyncSection extends StatelessWidget {
     onMessage('Stopped file sync — saves now go to browser storage');
   }
 
+  Future<void> _connectCloudBackedFile(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Pick a cloud-backed file'),
+        content: const Text(
+          'Lakshya does not log into Dropbox, Google Drive, OneDrive, or '
+          'iCloud directly. Instead, pick a file inside a folder those '
+          'services already sync on this device.\n\n'
+          'Examples: iCloud Drive, Dropbox, OneDrive, or Google Drive for '
+          'Desktop.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.tonal(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Pick file'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await _connectNewFile(explainCloudFlow: true);
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -463,14 +497,15 @@ class _WebFileSyncSection extends StatelessWidget {
               leading: Icon(
                 active ? Icons.cloud_done_outlined : Icons.cloud_off_outlined,
               ),
-              title: const Text('Sync to a file on disk'),
+              title: const Text('Sync to a file'),
               subtitle: Text(active
                   ? 'Saving to "$fileName" on every change. Survives '
                       'browser data wipes — re-grant access after a wipe '
                       'and your data is back.'
                   : 'Pick a .json file once; the app writes to it on every '
                       'change. The file lives outside the browser so it '
-                      'survives any data wipe.'),
+                      'survives any data wipe. You can also place that file '
+                      'inside a cloud-synced folder.'),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -481,9 +516,16 @@ class _WebFileSyncSection extends StatelessWidget {
                   FilledButton.icon(
                     icon: const Icon(Icons.save_outlined),
                     label: Text(active
-                        ? 'Save to a different file…'
-                        : 'Save current graph to a file…'),
-                    onPressed: _connect,
+                        ? 'Switch synced file…'
+                        : 'Create file and sync…'),
+                    onPressed: _connectNewFile,
+                  ),
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.cloud_sync_outlined),
+                    label: Text(active
+                        ? 'Use a cloud-backed file…'
+                        : 'Create cloud-backed file…'),
+                    onPressed: () => _connectCloudBackedFile(context),
                   ),
                   OutlinedButton.icon(
                     icon: const Icon(Icons.file_open_outlined),

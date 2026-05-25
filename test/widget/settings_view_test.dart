@@ -4,10 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lakshya/app/graph_controller.dart';
+import 'package:lakshya/app/web_file_sync_coordinator.dart';
 import 'package:lakshya/model/lakshya_graph.dart';
 import 'package:lakshya/model/node.dart';
 import 'package:lakshya/model/node_status.dart';
 import 'package:lakshya/model/settings.dart';
+import 'package:lakshya/repository/graph_repository.dart';
+import 'package:lakshya/repository/web_graph_file_sync.dart';
 import 'package:lakshya/service/graph_io.dart';
 import 'package:lakshya/service/id_generator.dart';
 import 'package:lakshya/service/schema_validator.dart';
@@ -151,4 +154,87 @@ void main() {
       ),
     );
   });
+
+  testWidgets('web file sync section explains ongoing sync and cloud-backed files',
+      (tester) async {
+    final controller = GraphController(
+      initial: const LakshyaGraph.empty(),
+      save: (_) async {},
+      idGenerator: SequentialIdGenerator(),
+      clock: () => DateTime.utc(2026, 5, 24),
+    );
+    final coordinator = WebFileSyncCoordinator(
+      fileSync: _FakeWebGraphFileSync(),
+      controller: controller,
+      validator: validator,
+    );
+
+    await tester.pumpWidget(MaterialApp(
+      home: SettingsView(
+        controller: controller,
+        validator: validator,
+        webFileSync: coordinator,
+        fallbackRepository: _FakeGraphRepository(),
+      ),
+    ));
+
+    expect(find.text('Sync to a file'), findsOneWidget);
+    expect(find.text('Create file and sync…'), findsOneWidget);
+    expect(find.text('Create cloud-backed file…'), findsOneWidget);
+    expect(find.text('Open existing file and sync…'), findsOneWidget);
+    expect(find.textContaining('cloud-synced folder'), findsOneWidget);
+  });
+
+  testWidgets('cloud-backed file action explains provider limitations',
+      (tester) async {
+    tester.view.physicalSize = const Size(1200, 1600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final controller = GraphController(
+      initial: const LakshyaGraph.empty(),
+      save: (_) async {},
+      idGenerator: SequentialIdGenerator(),
+      clock: () => DateTime.utc(2026, 5, 24),
+    );
+    final coordinator = WebFileSyncCoordinator(
+      fileSync: _FakeWebGraphFileSync(),
+      controller: controller,
+      validator: validator,
+    );
+
+    await tester.pumpWidget(MaterialApp(
+      home: SettingsView(
+        controller: controller,
+        validator: validator,
+        webFileSync: coordinator,
+        fallbackRepository: _FakeGraphRepository(),
+      ),
+    ));
+
+    final button = find.widgetWithText(
+      OutlinedButton,
+      'Create cloud-backed file…',
+    );
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Pick a cloud-backed file'), findsOneWidget);
+    expect(find.textContaining('does not log into Dropbox, Google Drive'), findsOneWidget);
+    expect(find.text('Pick file'), findsOneWidget);
+  });
+}
+
+class _FakeWebGraphFileSync extends WebGraphFileSync {
+  @override
+  bool get isSupported => true;
+}
+
+class _FakeGraphRepository implements GraphRepository {
+  @override
+  Future<LakshyaGraph?> load() async => null;
+
+  @override
+  Future<void> save(LakshyaGraph graph) async {}
 }

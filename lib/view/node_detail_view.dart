@@ -221,7 +221,7 @@ class _DetailScaffold extends StatelessWidget {
   void _addAttachment(Attachment attachment) {
     final updated = node.copyWith(
       attachments: [...node.attachments, attachment],
-      updatedAt: DateTime.now(),
+      updatedAt: controller.clock(),
     );
     controller.updateNode(updated);
   }
@@ -230,7 +230,7 @@ class _DetailScaffold extends StatelessWidget {
     final next = [...node.attachments]..remove(attachment);
     controller.updateNode(node.copyWith(
       attachments: next,
-      updatedAt: DateTime.now(),
+      updatedAt: controller.clock(),
     ));
   }
 
@@ -267,7 +267,10 @@ class _DetailScaffold extends StatelessWidget {
   Future<void> _openEditor(BuildContext context) async {
     final updated = await showDialog<Node>(
       context: context,
-      builder: (_) => _NodeEditorDialog(initial: node),
+      builder: (_) => _NodeEditorDialog(
+        initial: node,
+        clock: controller.clock,
+      ),
     );
     if (updated == null) return;
     controller.updateNode(updated);
@@ -591,8 +594,9 @@ enum _CompletionChoice { none, oneTime, nTimes, periodic }
 /// description, activation window, completion semantics, impact, deadline.
 /// Returns the edited [Node] via Navigator.pop, or null on cancel.
 class _NodeEditorDialog extends StatefulWidget {
-  const _NodeEditorDialog({required this.initial});
+  const _NodeEditorDialog({required this.initial, required this.clock});
   final Node initial;
+  final DateTime Function() clock;
 
   @override
   State<_NodeEditorDialog> createState() => _NodeEditorDialogState();
@@ -745,7 +749,7 @@ class _NodeEditorDialogState extends State<_NodeEditorDialog> {
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
     final title = _titleController.text.trim();
-    final now = DateTime.now();
+    final now = widget.clock();
     final description = _descriptionController.text.trim();
     final status = NodeStatus(
       activation: _buildActivation(now),
@@ -771,7 +775,7 @@ class _NodeEditorDialogState extends State<_NodeEditorDialog> {
   Future<void> _pickDeadline() async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: _deadline ?? DateTime.now(),
+      initialDate: _deadline ?? widget.clock(),
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
     );
@@ -781,7 +785,7 @@ class _NodeEditorDialogState extends State<_NodeEditorDialog> {
   Future<void> _pickActiveFrom() async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: _activeFrom ?? DateTime.now(),
+      initialDate: _activeFrom ?? widget.clock(),
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
     );
@@ -797,7 +801,7 @@ class _NodeEditorDialogState extends State<_NodeEditorDialog> {
 
   Future<void> _pickActiveUntil() async {
     final minimum = _activeFrom ?? DateTime(2020);
-    final initial = _activeUntil ?? _activeFrom ?? DateTime.now();
+    final initial = _activeUntil ?? _activeFrom ?? widget.clock();
     final picked = await showDatePicker(
       context: context,
       initialDate: initial.isBefore(minimum) ? minimum : initial,

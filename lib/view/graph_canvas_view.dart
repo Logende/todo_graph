@@ -64,8 +64,8 @@ class _GraphCanvasState extends State<_GraphCanvas> {
   void initState() {
     super.initState();
     _config = gv.SugiyamaConfiguration()
-      ..nodeSeparation = 32
-      ..levelSeparation = 72
+      ..nodeSeparation = 52
+      ..levelSeparation = 80
       ..orientation = gv.SugiyamaConfiguration.ORIENTATION_TOP_BOTTOM;
     _graph = _buildLayoutGraph();
   }
@@ -82,10 +82,49 @@ class _GraphCanvasState extends State<_GraphCanvas> {
     super.dispose();
   }
 
+  Set<String> get _collapsedIds =>
+      widget.controller.graph.settings?.collapsedNodeIds.toSet() ??
+      const <String>{};
+
+  /// Nodes with at least one child edge in the full graph.
+  Set<String> get _nodesWithChildren {
+    final result = <String>{};
+    for (final edge in widget.controller.graph.edges) {
+      result.add(edge.parentId);
+    }
+    return result;
+  }
+
+  /// Computes visible node IDs by BFS from root-level nodes, skipping
+  /// the children of collapsed nodes.
+  Set<String> _visibleNodeIds() {
+    final allIds = widget.modelNodes.map((n) => n.id).toSet();
+    final childIds = widget.controller.graph.edges
+        .where((e) => allIds.contains(e.childId) && allIds.contains(e.parentId))
+        .map((e) => e.childId)
+        .toSet();
+    final topLevel = allIds.difference(childIds);
+    final visible = <String>{};
+    final queue = [...topLevel];
+    while (queue.isNotEmpty) {
+      final id = queue.removeAt(0);
+      if (!visible.add(id)) continue;
+      if (_collapsedIds.contains(id)) continue;
+      for (final edge in widget.controller.graph.edges) {
+        if (edge.parentId == id && allIds.contains(edge.childId)) {
+          queue.add(edge.childId);
+        }
+      }
+    }
+    return visible;
+  }
+
   gv.Graph _buildLayoutGraph() {
     final graph = gv.Graph()..isTree = false;
+    final visible = _visibleNodeIds();
     final layoutNodeById = <String, gv.Node>{};
     for (final modelNode in widget.modelNodes) {
+      if (!visible.contains(modelNode.id)) continue;
       final layoutNode = gv.Node.Id(modelNode.id);
       layoutNodeById[modelNode.id] = layoutNode;
       graph.addNode(layoutNode);
@@ -94,11 +133,17 @@ class _GraphCanvasState extends State<_GraphCanvas> {
       final from = layoutNodeById[edge.childId];
       final to = layoutNodeById[edge.parentId];
       if (from == null || to == null) continue;
-      // Parent is the higher level — draw edge upward so Sugiyama lays out
-      // the root at the top.
       graph.addEdge(to, from);
     }
     return graph;
+  }
+
+  void _toggleCollapsed(String nodeId) {
+    final current = {..._collapsedIds};
+    if (!current.add(nodeId)) {
+      current.remove(nodeId);
+    }
+    widget.controller.setCollapsedNodeIds(current.toList()..sort());
   }
 
   @override
@@ -134,10 +179,18 @@ class _GraphCanvasState extends State<_GraphCanvas> {
               final id = layoutNode.key!.value as String;
               final modelNode = modelNodeById[id];
               if (modelNode == null) return const SizedBox.shrink();
+              final hasChildren =
+                  _nodesWithChildren.contains(modelNode.id);
+              final isCollapsed =
+                  _collapsedIds.contains(modelNode.id);
               return _NodeBox(
                 node: modelNode,
                 now: now,
                 urgentWindow: urgentWindow,
+                hasChildren: hasChildren,
+                isCollapsed: isCollapsed,
+                onToggleCollapsed:
+                    hasChildren ? () => _toggleCollapsed(modelNode.id) : null,
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (_) => NodeDetailView(
@@ -160,13 +213,19 @@ class _NodeBox extends StatefulWidget {
     required this.node,
     required this.now,
     required this.urgentWindow,
+    required this.hasChildren,
+    required this.isCollapsed,
     required this.onTap,
+    this.onToggleCollapsed,
   });
 
   final model.Node node;
   final DateTime now;
   final Duration urgentWindow;
+  final bool hasChildren;
+  final bool isCollapsed;
   final VoidCallback onTap;
+  final VoidCallback? onToggleCollapsed;
 
   @override
   State<_NodeBox> createState() => _NodeBoxState();
@@ -264,6 +323,34 @@ class _NodeBoxState extends State<_NodeBox> {
                             .textTheme
                             .labelSmall
                             ?.copyWith(color: palette.subtitleColor),
+                      ),
+                    ],
+                    if (widget.hasChildren) ...[
+                      const SizedBox(height: 4),
+                      GestureDetector(
+                        onTap: widget.onToggleCollapsed,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              widget.isCollapsed
+                                  ? Icons.expand_more
+                                  : Icons.expand_less,
+                              size: 16,
+                              color: palette.subtitleColor,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              widget.isCollapsed
+                                  ? 'Show children'
+                                  : 'Hide children',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelSmall
+                                  ?.copyWith(color: palette.subtitleColor),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ],
