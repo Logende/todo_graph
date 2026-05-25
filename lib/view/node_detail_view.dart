@@ -691,11 +691,11 @@ class _NodeEditorDialogState extends State<_NodeEditorDialog> {
       case _ActivationChoice.alwaysActive:
         return const AlwaysActive();
       case _ActivationChoice.bounded:
-        final from = _activeFrom ?? now;
-        final defaultUntil = from.add(const Duration(days: 30));
-        final picked = _activeUntil ?? defaultUntil;
-        // Defensive clamp matches AddNodeView's behaviour.
-        final until = picked.isBefore(from) ? from : picked;
+        final from = _activeFrom;
+        final until = _activeUntil;
+        if (from != null && until != null && until.isBefore(from)) {
+          return BoundedActive(activeFrom: from, activeUntil: from);
+        }
         return BoundedActive(activeFrom: from, activeUntil: until);
     }
   }

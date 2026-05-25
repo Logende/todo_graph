@@ -88,8 +88,10 @@ class FilterEvaluator {
   bool _isTimewiseInactive(Node node) {
     final activation = node.status.activation;
     if (activation is BoundedActive) {
-      if (now.isBefore(activation.activeFrom)) return true;
-      if (now.isAfter(activation.activeUntil)) return true;
+      final from = activation.activeFrom;
+      final until = activation.activeUntil;
+      if (from != null && now.isBefore(from)) return true;
+      if (until != null && now.isAfter(until)) return true;
     }
     final completion = node.status.completion;
     if (completion is PeriodicCompletion && !completion.isOpenAt(now)) {

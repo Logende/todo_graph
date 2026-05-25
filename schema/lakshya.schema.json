@@ -85,8 +85,9 @@
     },
     "ActivationBounded": {
       "type": "object",
-      "required": ["kind", "activeFrom", "activeUntil"],
+      "required": ["kind"],
       "additionalProperties": false,
+      "description": "Either or both dates may be omitted: only-from = active from that date onward; only-until = active until that date; both = closed interval.",
       "properties": {
         "kind": { "const": "bounded" },
         "activeFrom": { "type": "string", "format": "date-time" },

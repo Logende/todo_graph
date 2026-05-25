@@ -108,13 +108,13 @@ class _AddNodeViewState extends State<AddNodeView> {
       case _ActivationChoice.alwaysActive:
         return const AlwaysActive();
       case _ActivationChoice.bounded:
-        final from = _activeFrom ?? widget.controller.clock();
-        final defaultUntil = from.add(const Duration(days: 30));
-        final picked = _activeUntil ?? defaultUntil;
-        // Defensive clamp — the UI prevents picking an earlier "until", but
-        // if anything slips through (e.g. clearing then re-entering bounded
-        // mode) we'd rather snap the window than throw at submit time.
-        final until = picked.isBefore(from) ? from : picked;
+        // Either or both can be null — the model accepts open-ended windows.
+        // When both are set, clamp so until >= from.
+        final from = _activeFrom;
+        final until = _activeUntil;
+        if (from != null && until != null && until.isBefore(from)) {
+          return BoundedActive(activeFrom: from, activeUntil: from);
+        }
         return BoundedActive(activeFrom: from, activeUntil: until);
     }
   }
@@ -242,23 +242,23 @@ class _AddNodeViewState extends State<AddNodeView> {
             if (_activation == _ActivationChoice.bounded) ...[
               const SizedBox(height: 12),
               _DatePickerRow(
-                label: 'Active from',
+                label: 'Active from (optional)',
                 value: _activeFrom,
                 onPick: (d) => setState(() {
                   _activeFrom = d;
-                  // Keep the window valid: pull "until" forward if the new
-                  // "from" landed past it.
                   if (_activeUntil != null && _activeUntil!.isBefore(d)) {
                     _activeUntil = d;
                   }
                 }),
+                onClear: () => setState(() => _activeFrom = null),
                 contextClock: widget.controller.clock,
               ),
               const SizedBox(height: 8),
               _DatePickerRow(
-                label: 'Active until',
+                label: 'Active until (optional)',
                 value: _activeUntil,
                 onPick: (d) => setState(() => _activeUntil = d),
+                onClear: () => setState(() => _activeUntil = null),
                 contextClock: widget.controller.clock,
                 minimumDate: _activeFrom,
               ),

@@ -51,10 +51,11 @@ class NodeStatus extends Equatable {
         );
 
   /// Convenience: bounded activation window with an optional completion
-  /// aspect inside the window.
+  /// aspect inside the window. Either or both dates can be omitted to
+  /// represent "from now on" / "until then" / "during this range".
   NodeStatus.bounded({
-    required DateTime activeFrom,
-    required DateTime activeUntil,
+    DateTime? activeFrom,
+    DateTime? activeUntil,
     this.completion,
   }) : activation = BoundedActive(
           activeFrom: activeFrom,

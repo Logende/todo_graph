@@ -46,13 +46,18 @@ final class AlwaysActive extends ActivationWindow {
   List<Object?> get props => const [];
 }
 
-/// Live only between [activeFrom] and [activeUntil] inclusive.
+/// Live within a time window. Either or both bounds may be omitted:
+///
+/// * Only [activeFrom] set → active from that date onward (no end).
+/// * Only [activeUntil] set → active until that date (already started).
+/// * Both set → active within the closed interval `[activeFrom, activeUntil]`.
+///
+/// When both are present, [activeUntil] must not precede [activeFrom].
 final class BoundedActive extends ActivationWindow {
-  BoundedActive({
-    required this.activeFrom,
-    required this.activeUntil,
-  }) {
-    if (activeUntil.isBefore(activeFrom)) {
+  BoundedActive({this.activeFrom, this.activeUntil}) {
+    if (activeFrom != null &&
+        activeUntil != null &&
+        activeUntil!.isBefore(activeFrom!)) {
       throw ArgumentError(
         'activeUntil ($activeUntil) must not be before activeFrom '
         '($activeFrom)',
@@ -60,28 +65,34 @@ final class BoundedActive extends ActivationWindow {
     }
   }
 
-  final DateTime activeFrom;
-  final DateTime activeUntil;
+  final DateTime? activeFrom;
+  final DateTime? activeUntil;
 
   @override
   String get kind => 'bounded';
 
   @override
-  bool isActiveAt(DateTime now) =>
-      !now.isBefore(activeFrom) && !now.isAfter(activeUntil);
+  bool isActiveAt(DateTime now) {
+    if (activeFrom != null && now.isBefore(activeFrom!)) return false;
+    if (activeUntil != null && now.isAfter(activeUntil!)) return false;
+    return true;
+  }
 
   @override
   Map<String, dynamic> toJson() => {
         'kind': kind,
-        'activeFrom': activeFrom.toIso8601String(),
-        'activeUntil': activeUntil.toIso8601String(),
+        if (activeFrom != null) 'activeFrom': activeFrom!.toIso8601String(),
+        if (activeUntil != null) 'activeUntil': activeUntil!.toIso8601String(),
       };
 
   factory BoundedActive.fromJson(Map<String, dynamic> json) {
-    final activeFrom = DateTime.parse(json['activeFrom'] as String);
-    final activeUntil = DateTime.parse(json['activeUntil'] as String);
+    final fromRaw = json['activeFrom'] as String?;
+    final untilRaw = json['activeUntil'] as String?;
     try {
-      return BoundedActive(activeFrom: activeFrom, activeUntil: activeUntil);
+      return BoundedActive(
+        activeFrom: fromRaw == null ? null : DateTime.parse(fromRaw),
+        activeUntil: untilRaw == null ? null : DateTime.parse(untilRaw),
+      );
     } on ArgumentError catch (e) {
       throw FormatException(e.message.toString());
     }

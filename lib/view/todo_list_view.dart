@@ -798,7 +798,9 @@ class _NodeTile extends StatelessWidget {
       );
     }
     final activation = node.status.activation;
-    if (activation is BoundedActive && now.isBefore(activation.activeFrom)) {
+    if (activation is BoundedActive &&
+        activation.activeFrom != null &&
+        now.isBefore(activation.activeFrom!)) {
       return Tooltip(
         message: 'Not active yet',
         child: Icon(
@@ -845,9 +847,11 @@ class _NodeTile extends StatelessWidget {
     }
     final a = node.status.activation;
     if (a is BoundedActive) {
-      parts.add(
-        'Active ${formatDate(a.activeFrom)} – ${formatDate(a.activeUntil)}',
-      );
+      final fromLabel =
+          a.activeFrom != null ? formatDate(a.activeFrom!) : '…';
+      final untilLabel =
+          a.activeUntil != null ? formatDate(a.activeUntil!) : '…';
+      parts.add('Active $fromLabel – $untilLabel');
     }
     return parts.isEmpty ? null : parts.join(' • ');
   }

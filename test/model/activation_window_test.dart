@@ -81,7 +81,40 @@ void main() {
       );
     });
 
-    test('both variants round-trip through json', () {
+    test('bounded with only activeFrom is active from that date onward', () {
+      final w = BoundedActive(activeFrom: DateTime.utc(2026, 5, 1));
+      expect(w.isActiveAt(DateTime.utc(2026, 4, 30)), isFalse);
+      expect(w.isActiveAt(DateTime.utc(2026, 5, 1)), isTrue);
+      expect(w.isActiveAt(DateTime.utc(2099, 1, 1)), isTrue,
+          reason: 'no end date → active indefinitely');
+    });
+
+    test('bounded with only activeUntil is active until that date', () {
+      final w = BoundedActive(activeUntil: DateTime.utc(2026, 6, 1));
+      expect(w.isActiveAt(DateTime.utc(2020, 1, 1)), isTrue,
+          reason: 'no start date → was always active');
+      expect(w.isActiveAt(DateTime.utc(2026, 6, 1)), isTrue);
+      expect(w.isActiveAt(DateTime.utc(2026, 6, 2)), isFalse);
+    });
+
+    test('bounded with neither date is always active', () {
+      final w = BoundedActive();
+      expect(w.isActiveAt(DateTime.utc(2026, 5, 24)), isTrue);
+    });
+
+    test('bounded with only-from round-trips through json', () {
+      final original = BoundedActive(activeFrom: DateTime.utc(2026, 5, 1));
+      final round = ActivationWindow.fromJson(original.toJson());
+      expect(round, equals(original));
+    });
+
+    test('bounded with only-until round-trips through json', () {
+      final original = BoundedActive(activeUntil: DateTime.utc(2026, 6, 1));
+      final round = ActivationWindow.fromJson(original.toJson());
+      expect(round, equals(original));
+    });
+
+    test('all variants round-trip through json', () {
       final variants = <ActivationWindow>[
         const AlwaysActive(),
         BoundedActive(
