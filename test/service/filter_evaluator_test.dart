@@ -72,33 +72,39 @@ void main() {
       );
     });
 
-    test('an empty filter hides only timewise inactive tasks by default', () {
+    test('an empty filter hides timewise-inactive and completed tasks by default',
+        () {
       final result =
           FilterEvaluator(graph: graph, now: now).apply(const Filter());
       expect(result.map((n) => n.id),
-          containsAll(['root', 'health', 'work', 'write-paper', 'done-thing', 'llm-paper']));
+          containsAll(['root', 'health', 'work', 'write-paper', 'llm-paper']));
+      expect(result.any((n) => n.id == 'done-thing'), isFalse,
+          reason: 'completed tasks are hidden by default');
       expect(result.any((n) => n.id == 'pushday'), isFalse,
           reason: 'periodic tasks in cool-down are hidden by default');
       expect(result.any((n) => n.id == 'conference'), isFalse,
           reason: 'future-window tasks are hidden by default');
       expect(result.any((n) => n.id == 'past-event'), isFalse,
-          reason: 'past-window tasks (activeUntil in the past) are '
-              'also hidden by default');
+          reason: 'past-window tasks are hidden by default');
     });
 
-    test('showCompletedTasks=false hides fully completed one-time tasks', () {
+    test('showCompletedTasks=true brings back completed tasks', () {
       final result = FilterEvaluator(graph: graph, now: now)
-          .apply(const Filter(showCompletedTasks: false));
-      expect(result.any((n) => n.id == 'done-thing'), isFalse);
+          .apply(const Filter(showCompletedTasks: true));
+      expect(result.any((n) => n.id == 'done-thing'), isTrue);
       expect(result.any((n) => n.id == 'write-paper'), isTrue);
-      expect(result.any((n) => n.id == 'pushday'), isFalse,
-          reason: 'periodic cooldown remains governed by the timewise toggle');
     });
 
-    test('showTimewiseInactiveTasks brings back future and cool-down tasks', () {
-      final result = FilterEvaluator(graph: graph, now: now)
-          .apply(const Filter(showTimewiseInactiveTasks: true));
-      expect(result.map((n) => n.id), containsAll(graph.nodes.map((n) => n.id)));
+    test('showTimewiseInactiveTasks + showCompletedTasks brings back everything',
+        () {
+      final result = FilterEvaluator(graph: graph, now: now).apply(
+        const Filter(
+          showTimewiseInactiveTasks: true,
+          showCompletedTasks: true,
+        ),
+      );
+      expect(result.map((n) => n.id),
+          containsAll(graph.nodes.map((n) => n.id)));
       expect(result, hasLength(graph.nodes.length));
     });
 
@@ -116,6 +122,7 @@ void main() {
         const Filter(
           ancestorGoalIds: ['health', 'work'],
           showTimewiseInactiveTasks: true,
+          showCompletedTasks: true,
         ),
       );
       expect(
@@ -130,6 +137,7 @@ void main() {
         const Filter(
           ancestorGoalIds: ['work'],
           contribution: FilterContribution.mandatory,
+          showCompletedTasks: true,
         ),
       );
       expect(
@@ -179,7 +187,7 @@ void main() {
       // done-thing remains. write-paper has one child (llm-paper) which is
       // in the scope, so it is NOT a leaf in scope.
       final result = FilterEvaluator(graph: graph, now: now).apply(
-        const Filter(ancestorGoalIds: ['work'], onlyLeaves: true),
+        const Filter(ancestorGoalIds: ['work'], onlyLeaves: true, showCompletedTasks: true),
       );
       expect(result.map((n) => n.id).toSet(), equals({'done-thing'}));
     });
@@ -189,6 +197,7 @@ void main() {
       final result =
           FilterEvaluator(graph: graph, now: now).apply(const Filter(
         showTimewiseInactiveTasks: true,
+        showCompletedTasks: true,
         onlyLeaves: true,
       ));
       expect(result.map((n) => n.id).toSet(),
@@ -215,6 +224,7 @@ void main() {
         const Filter(
           ancestorGoalIds: ['work'],
           contribution: FilterContribution.mandatory,
+          showCompletedTasks: true,
           onlyOngoing: true,
           onlyLeaves: true,
         ),

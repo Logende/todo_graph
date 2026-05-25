@@ -447,6 +447,7 @@ void main() {
         controller: controller,
         title: 'Test',
         filter: const Filter(),
+        nowFactory: () => DateTime.utc(2026, 5, 24, 12),
       ),
     ));
 
@@ -462,7 +463,7 @@ void main() {
     expect(find.text('Push day'), findsOneWidget);
   });
 
-  testWidgets('completed tasks can be hidden from the filter drawer',
+  testWidgets('completed tasks are hidden by default and can be shown via the drawer',
       (tester) async {
     final graph = LakshyaGraph(
       nodes: [
@@ -500,15 +501,17 @@ void main() {
       ),
     ));
 
-    expect(find.text('Already done'), findsOneWidget);
+    // Default: completed tasks are hidden.
+    expect(find.text('Already done'), findsNothing);
     expect(find.text('Still open'), findsOneWidget);
 
+    // Toggle the drawer switch to show them.
     await tester.tap(find.byTooltip('Filter & save'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Show completed tasks'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Already done'), findsNothing);
+    expect(find.text('Already done'), findsOneWidget);
     expect(find.text('Still open'), findsOneWidget);
   });
 

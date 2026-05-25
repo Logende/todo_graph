@@ -52,7 +52,7 @@ class Filter extends Equatable {
     this.completionKinds = const [],
     this.activationKinds = const [],
     this.showTimewiseInactiveTasks = false,
-    this.showCompletedTasks = true,
+    this.showCompletedTasks = false,
     this.onlyOngoing = false,
     this.onlyLeaves = false,
     this.freeText,
@@ -114,7 +114,7 @@ class Filter extends Equatable {
               activationKinds.map((k) => k.jsonValue).toList(),
         if (showTimewiseInactiveTasks)
           'showTimewiseInactiveTasks': showTimewiseInactiveTasks,
-        if (!showCompletedTasks) 'showCompletedTasks': showCompletedTasks,
+        if (showCompletedTasks) 'showCompletedTasks': showCompletedTasks,
         if (onlyOngoing) 'onlyOngoing': onlyOngoing,
         if (onlyLeaves) 'onlyLeaves': onlyLeaves,
         if (freeText != null) 'freeText': freeText,
@@ -140,7 +140,7 @@ class Filter extends Equatable {
           const [],
       showTimewiseInactiveTasks:
           (json['showTimewiseInactiveTasks'] as bool?) ?? false,
-      showCompletedTasks: (json['showCompletedTasks'] as bool?) ?? true,
+      showCompletedTasks: (json['showCompletedTasks'] as bool?) ?? false,
       onlyOngoing: (json['onlyOngoing'] as bool?) ?? false,
       onlyLeaves: (json['onlyLeaves'] as bool?) ?? false,
       freeText: json['freeText'] as String?,
