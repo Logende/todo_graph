@@ -50,9 +50,11 @@ void main() {
         buildNode('root'),
         buildNode('paper-a', title: 'Paper A', status: NodeStatus.oneTime()),
         buildNode('paper-b', title: 'Paper B', status: NodeStatus.oneTime()),
+        buildNode('paper-c', title: 'Paper C', status: NodeStatus.oneTime()),
       ],
       edges: [
         buildEdge('e1', from: 'paper-a', to: 'root'),
+        buildEdge('e2', from: 'paper-c', to: 'paper-a'),
       ],
       relationships: const [
         NodeRelationship(
@@ -68,11 +70,37 @@ void main() {
     await _pumpDetailFor(tester, controller, 'paper-a');
 
     expect(find.text('Paper A'), findsOneWidget);
-    expect(find.text('Parents (1)'), findsOneWidget);
+    expect(find.text('Parent goals / contexts (1)'), findsOneWidget);
     expect(find.text('root'), findsOneWidget);
-    expect(find.text('Relationships (1)'), findsOneWidget);
+    expect(find.text('Child tasks / dependents (1)'), findsOneWidget);
+    expect(find.text('Paper C'), findsOneWidget);
+    expect(find.text('Other relationships (1)'), findsOneWidget);
     expect(find.textContaining('Paper A'), findsWidgets);
     expect(find.textContaining('Paper B'), findsWidgets);
+  });
+
+  testWidgets('multiple parents are shown as a real list', (tester) async {
+    final graph = LakshyaGraph(
+      nodes: [
+        buildNode('root'),
+        buildNode('project-a', title: 'Project A'),
+        buildNode('project-b', title: 'Project B'),
+        buildNode('task', title: 'Shared task', status: NodeStatus.oneTime()),
+      ],
+      edges: [
+        buildEdge('e1', from: 'project-a', to: 'root'),
+        buildEdge('e2', from: 'project-b', to: 'root'),
+        buildEdge('e3', from: 'task', to: 'project-a'),
+        buildEdge('e4', from: 'task', to: 'project-b'),
+      ],
+    );
+    final controller = _controllerWith(graph);
+
+    await _pumpDetailFor(tester, controller, 'task');
+
+    expect(find.text('Parent goals / contexts (2)'), findsOneWidget);
+    expect(find.text('Project A'), findsOneWidget);
+    expect(find.text('Project B'), findsOneWidget);
   });
 
   testWidgets('removing a relationship updates the list immediately',
@@ -93,10 +121,10 @@ void main() {
 
     await _pumpDetailFor(tester, controller, 'a');
 
-    expect(find.text('Relationships (1)'), findsOneWidget);
+    expect(find.text('Other relationships (1)'), findsOneWidget);
     await tester.tap(find.byTooltip('Remove this relationship'));
     await tester.pump();
-    expect(find.text('Relationships (0)'), findsOneWidget);
+    expect(find.text('Other relationships (0)'), findsOneWidget);
     expect(controller.graph.relationships, isEmpty);
   });
 
@@ -119,6 +147,67 @@ void main() {
 
     expect(controller.graph.nodes.any((n) => n.id == 'a'), isFalse);
     expect(controller.graph.edges.any((e) => e.id == 'e1'), isFalse);
+  });
+
+  testWidgets('deleting a node with children can promote the children',
+      (tester) async {
+    final graph = LakshyaGraph(
+      nodes: [
+        buildNode('root'),
+        buildNode('parent', title: 'Parent'),
+        buildNode('child', title: 'Child', status: NodeStatus.oneTime()),
+      ],
+      edges: [
+        buildEdge('e1', from: 'parent', to: 'root'),
+        buildEdge('e2', from: 'child', to: 'parent'),
+      ],
+    );
+    final controller = _controllerWith(graph);
+
+    await _pumpDetailFor(tester, controller, 'parent');
+
+    await tester.tap(find.byTooltip('Delete this node'));
+    await tester.pumpAndSettle();
+    expect(find.text('Delete node with children?'), findsOneWidget);
+
+    await tester.tap(find.text('Move children up'));
+    await tester.pumpAndSettle();
+
+    expect(controller.graph.nodes.any((n) => n.id == 'parent'), isFalse);
+    expect(
+      controller.graph.edges.any(
+        (e) => e.childId == 'child' && e.parentId == 'root',
+      ),
+      isTrue,
+    );
+  });
+
+  testWidgets('deleting a node with children can delete the full subtree',
+      (tester) async {
+    final graph = LakshyaGraph(
+      nodes: [
+        buildNode('root'),
+        buildNode('parent', title: 'Parent'),
+        buildNode('child', title: 'Child', status: NodeStatus.oneTime()),
+      ],
+      edges: [
+        buildEdge('e1', from: 'parent', to: 'root'),
+        buildEdge('e2', from: 'child', to: 'parent'),
+      ],
+    );
+    final controller = _controllerWith(graph);
+
+    await _pumpDetailFor(tester, controller, 'parent');
+
+    await tester.tap(find.byTooltip('Delete this node'));
+    await tester.pumpAndSettle();
+    expect(find.text('Delete node with children?'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Delete all children too'));
+    await tester.pumpAndSettle();
+
+    expect(controller.graph.nodes.any((n) => n.id == 'parent'), isFalse);
+    expect(controller.graph.nodes.any((n) => n.id == 'child'), isFalse);
   });
 
   testWidgets('status summary shows inherited deadline when own deadline is unset',

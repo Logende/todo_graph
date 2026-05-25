@@ -42,6 +42,65 @@ class GraphMutator {
     );
   }
 
+  LakshyaGraph deleteNodeAndDescendants(LakshyaGraph graph, String nodeId) {
+    final index = graph.nodes.indexWhere((n) => n.id == nodeId);
+    _requirePresent(index, nodeId, label: 'nodeId');
+    final traversal = GraphTraversal(graph);
+    final doomed = {nodeId, ...traversal.descendantsOf(nodeId)};
+    return graph.copyWith(
+      nodes: graph.nodes.where((n) => !doomed.contains(n.id)).toList(),
+      edges: graph.edges
+          .where((e) => !doomed.contains(e.childId) && !doomed.contains(e.parentId))
+          .toList(),
+      relationships: graph.relationships
+          .where((r) => !doomed.contains(r.fromNodeId) && !doomed.contains(r.toNodeId))
+          .toList(),
+    );
+  }
+
+  LakshyaGraph deleteNodeAndPromoteChildren(LakshyaGraph graph, String nodeId) {
+    final index = graph.nodes.indexWhere((n) => n.id == nodeId);
+    _requirePresent(index, nodeId, label: 'nodeId');
+    final parentEdges = graph.edges.where((e) => e.childId == nodeId).toList();
+    final childEdges = graph.edges.where((e) => e.parentId == nodeId).toList();
+
+    final survivingEdges = graph.edges
+        .where((e) => e.childId != nodeId && e.parentId != nodeId)
+        .toList();
+    final promotedEdges = <Edge>[];
+    for (final childEdge in childEdges) {
+      for (final parentEdge in parentEdges) {
+        final duplicate = survivingEdges.any(
+              (e) =>
+                  e.childId == childEdge.childId &&
+                  e.parentId == parentEdge.parentId,
+            ) ||
+            promotedEdges.any(
+              (e) =>
+                  e.childId == childEdge.childId &&
+                  e.parentId == parentEdge.parentId,
+            );
+        if (duplicate) continue;
+        promotedEdges.add(
+          Edge(
+            id: '${childEdge.id}-promoted-${parentEdge.parentId}',
+            childId: childEdge.childId,
+            parentId: parentEdge.parentId,
+            contribution: childEdge.contribution,
+          ),
+        );
+      }
+    }
+
+    return graph.copyWith(
+      nodes: graph.nodes.where((n) => n.id != nodeId).toList(),
+      edges: [...survivingEdges, ...promotedEdges],
+      relationships: graph.relationships
+          .where((r) => r.fromNodeId != nodeId && r.toNodeId != nodeId)
+          .toList(),
+    );
+  }
+
   LakshyaGraph addEdge(LakshyaGraph graph, Edge edge) {
     _requireUniqueId(graph.edges.map((e) => e.id), edge.id, label: 'edge.id');
     final nodeIds = graph.nodes.map((n) => n.id).toSet();

@@ -73,6 +73,8 @@ class _DetailScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     final parentEdges =
         controller.graph.edges.where((e) => e.childId == node.id).toList();
+    final childEdges =
+        controller.graph.edges.where((e) => e.parentId == node.id).toList();
     final relationships = controller.graph.relationships
         .where((r) => r.fromNodeId == node.id || r.toNodeId == node.id)
         .toList();
@@ -157,15 +159,40 @@ class _DetailScaffold extends StatelessWidget {
               onRemove: () => _removeAttachment(attachment),
             ),
           const SizedBox(height: 24),
-          _SectionHeader(title: 'Parents (${parentEdges.length})'),
+          _SectionHeader(
+            title: 'Parent goals / contexts (${parentEdges.length})',
+          ),
+          if (parentEdges.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'This node is not currently attached under any parent goal.',
+                style: TextStyle(fontStyle: FontStyle.italic),
+              ),
+            ),
           ...parentEdges.map((e) => _ParentTile(
                 edge: e,
                 parentTitle: _titleForId(e.parentId),
                 onRemove: () => controller.removeEdge(e.id),
               )),
           const SizedBox(height: 24),
+          _SectionHeader(title: 'Child tasks / dependents (${childEdges.length})'),
+          if (childEdges.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'No child tasks or dependents yet.',
+                style: TextStyle(fontStyle: FontStyle.italic),
+              ),
+            ),
+          ...childEdges.map((e) => _ChildTile(
+                edge: e,
+                childTitle: _titleForId(e.childId),
+                onRemove: () => controller.removeEdge(e.id),
+              )),
+          const SizedBox(height: 24),
           _SectionHeader(
-            title: 'Relationships (${relationships.length})',
+            title: 'Other relationships (${relationships.length})',
             trailing: TextButton.icon(
               icon: const Icon(Icons.add),
               label: const Text('Add'),
@@ -176,7 +203,7 @@ class _DetailScaffold extends StatelessWidget {
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
               child: Text(
-                'No importance or alternative links yet.',
+                'No non-structural ranking or alternative links yet.',
                 style: TextStyle(fontStyle: FontStyle.italic),
               ),
             ),
@@ -273,6 +300,47 @@ class _DetailScaffold extends StatelessWidget {
   }
 
   Future<void> _confirmDelete(BuildContext context) async {
+    final childCount =
+        controller.graph.edges.where((e) => e.parentId == node.id).length;
+    if (childCount > 0) {
+      final choice = await showDialog<_DeleteNodeChoice>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Delete node with children?'),
+          content: Text(
+            '"${node.title}" has $childCount child'
+            '${childCount == 1 ? '' : 'ren'}. Choose what should happen '
+            'before deleting it.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton.tonal(
+              onPressed: () => Navigator.of(context)
+                  .pop(_DeleteNodeChoice.promoteChildren),
+              child: const Text('Move children up'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context)
+                  .pop(_DeleteNodeChoice.deleteSubtree),
+              child: const Text('Delete all children too'),
+            ),
+          ],
+        ),
+      );
+      switch (choice) {
+        case _DeleteNodeChoice.promoteChildren:
+          controller.deleteNodeAndPromoteChildren(node.id);
+        case _DeleteNodeChoice.deleteSubtree:
+          controller.deleteNodeAndDescendants(node.id);
+        case null:
+          return;
+      }
+      return;
+    }
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -410,6 +478,8 @@ enum _AddLinkChoice {
   alternativeTo,
 }
 
+enum _DeleteNodeChoice { promoteChildren, deleteSubtree }
+
 String _linkLabel(_AddLinkChoice choice) => switch (choice) {
       _AddLinkChoice.dependsOn => 'Depends on…',
       _AddLinkChoice.dependentOf => 'Is a dependent of…',
@@ -522,12 +592,39 @@ class _ParentTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: const Icon(Icons.arrow_upward),
+      leading: const Icon(Icons.account_tree_outlined),
       title: Text(parentTitle),
-      subtitle: Text(edge.contribution.name),
+      subtitle: Text('Contribution: ${edge.contribution.name}'),
       trailing: IconButton(
         icon: const Icon(Icons.link_off),
         tooltip: 'Remove this parent link',
+        onPressed: onRemove,
+      ),
+    );
+  }
+}
+
+class _ChildTile extends StatelessWidget {
+  const _ChildTile({
+    required this.edge,
+    required this.childTitle,
+    required this.onRemove,
+  });
+
+  final Edge edge;
+  final String childTitle;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: const Icon(Icons.subdirectory_arrow_right),
+      title: Text(childTitle),
+      subtitle: Text('Contribution: ${edge.contribution.name}'),
+      trailing: IconButton(
+        icon: const Icon(Icons.link_off),
+        tooltip: 'Remove this child link',
         onPressed: onRemove,
       ),
     );
@@ -889,6 +986,4 @@ class _TimeTriggerAttachmentDialogState
     );
   }
 }
-
-
 

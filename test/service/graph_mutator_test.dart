@@ -211,5 +211,54 @@ void main() {
       expect(next.relationships, isEmpty,
           reason: 'both r1 and r2 referenced node b');
     });
+
+    test('deleteNodeAndDescendants removes the full subtree', () {
+      final start = LakshyaGraph(
+        nodes: [
+          buildNode('root'),
+          buildNode('parent'),
+          buildNode('child'),
+          buildNode('grandchild'),
+          buildNode('sibling'),
+        ],
+        edges: [
+          buildEdge('e1', from: 'parent', to: 'root'),
+          buildEdge('e2', from: 'child', to: 'parent'),
+          buildEdge('e3', from: 'grandchild', to: 'child'),
+          buildEdge('e4', from: 'sibling', to: 'root'),
+        ],
+      );
+
+      final next = mutator.deleteNodeAndDescendants(start, 'parent');
+
+      expect(next.nodes.map((n) => n.id), equals(['root', 'sibling']));
+      expect(next.edges.map((e) => e.id), equals(['e4']));
+    });
+
+    test('deleteNodeAndPromoteChildren moves children up one level', () {
+      final start = LakshyaGraph(
+        nodes: [
+          buildNode('root'),
+          buildNode('grandparent'),
+          buildNode('parent'),
+          buildNode('child'),
+        ],
+        edges: [
+          buildEdge('e1', from: 'grandparent', to: 'root'),
+          buildEdge('e2', from: 'parent', to: 'grandparent'),
+          buildEdge('e3', from: 'child', to: 'parent'),
+        ],
+      );
+
+      final next = mutator.deleteNodeAndPromoteChildren(start, 'parent');
+
+      expect(next.nodes.any((n) => n.id == 'parent'), isFalse);
+      expect(
+        next.edges.any(
+          (e) => e.childId == 'child' && e.parentId == 'grandparent',
+        ),
+        isTrue,
+      );
+    });
   });
 }

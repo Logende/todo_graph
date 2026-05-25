@@ -99,6 +99,14 @@ class GraphController extends ChangeNotifier {
     _updateAndPersist(mutator.deleteNode(_graph, nodeId));
   }
 
+  void deleteNodeAndDescendants(String nodeId) {
+    _updateAndPersist(mutator.deleteNodeAndDescendants(_graph, nodeId));
+  }
+
+  void deleteNodeAndPromoteChildren(String nodeId) {
+    _updateAndPersist(mutator.deleteNodeAndPromoteChildren(_graph, nodeId));
+  }
+
   /// Marks the node complete at the current clock reading. Cascades through
   /// `alternativeTo` relationships so closing one alternative closes its
   /// twins in the same action.
