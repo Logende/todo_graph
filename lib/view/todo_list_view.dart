@@ -743,14 +743,17 @@ class _NodeTile extends StatelessWidget {
   final VoidCallback onOpenDetail;
   final VoidCallback onQuickAddChild;
 
-  static const double _indentPerLevel = 18;
-
   @override
   Widget build(BuildContext context) {
     final subtitle = _subtitleFor(node, now);
     final scheme = Theme.of(context).colorScheme;
-    // Thin left accent: primary for mandatory, outline-variant for helpful,
-    // transparent for root-level (no parent edge).
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    // Responsive indentation: tighter on narrow screens so deeply nested
+    // items still have room for their title text.
+    final indentPerLevel = screenWidth < 500 ? 10.0 : 16.0;
+    // Cap effective depth so very deep hierarchies don't push the text
+    // off-screen.
+    final effectiveDepth = depth.clamp(0, 8);
     final borderColor = switch (edgeContribution) {
       Contribution.mandatory => scheme.primary,
       Contribution.helpful => scheme.outlineVariant,
@@ -769,7 +772,7 @@ class _NodeTile extends StatelessWidget {
         ),
         child: ListTile(
           contentPadding: EdgeInsets.only(
-            left: 4 + depth * _indentPerLevel,
+            left: 4 + effectiveDepth * indentPerLevel,
             right: 4,
           ),
         leading: Row(
@@ -807,23 +810,36 @@ class _NodeTile extends StatelessWidget {
             _leadingFor(context),
           ],
         ),
-        title: Text(node.title),
-        subtitle: subtitle == null ? null : Text(subtitle),
+        title: Text(
+          node.title,
+          maxLines: screenWidth < 500 ? 2 : null,
+          overflow: screenWidth < 500 ? TextOverflow.ellipsis : null,
+        ),
+        subtitle: subtitle == null
+            ? null
+            : Text(
+                subtitle,
+                maxLines: screenWidth < 500 ? 1 : 2,
+                overflow: TextOverflow.ellipsis,
+              ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _statusBadge(node.status),
+            // Hide the status badge on narrow screens to save space.
+            if (screenWidth >= 500) _statusBadge(node.status),
             if (isTreeMode && currentParentId != null)
               IconButton(
                 tooltip: 'Move to another parent',
                 icon: const Icon(Icons.drive_file_move_outline),
                 visualDensity: VisualDensity.compact,
+                iconSize: screenWidth < 500 ? 18 : 24,
                 onPressed: () => onMoveToParent(currentParentId),
               ),
             IconButton(
               tooltip: 'Add child',
               icon: const Icon(Icons.add),
               visualDensity: VisualDensity.compact,
+              iconSize: screenWidth < 500 ? 18 : 24,
               onPressed: onQuickAddChild,
             ),
           ],

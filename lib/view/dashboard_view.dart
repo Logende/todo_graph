@@ -5,6 +5,7 @@ import '../app/web_file_sync_coordinator.dart';
 import '../model/filter.dart';
 import '../model/node.dart';
 import '../repository/graph_repository.dart';
+import '../service/cloud_sync_registry.dart';
 import '../service/filter_evaluator.dart';
 import 'add_node_view.dart';
 import 'graph_canvas_view.dart';
@@ -30,11 +31,13 @@ class DashboardView extends StatelessWidget {
     required this.controller,
     this.webFileSync,
     this.fallbackRepository,
+    this.cloudSyncRegistry,
   });
 
   final GraphController controller;
   final WebFileSyncCoordinator? webFileSync;
   final GraphRepository? fallbackRepository;
+  final CloudSyncRegistry? cloudSyncRegistry;
 
   static const _alwaysOnTiles = [
     _BuiltInTile(
@@ -64,6 +67,7 @@ class DashboardView extends StatelessWidget {
                   controller: controller,
                   webFileSync: webFileSync,
                   fallbackRepository: fallbackRepository,
+                  cloudSyncRegistry: cloudSyncRegistry,
                 ),
               ),
             ),

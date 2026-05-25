@@ -11,6 +11,8 @@ import 'package:lakshya/model/node_status.dart';
 import 'package:lakshya/model/settings.dart';
 import 'package:lakshya/repository/graph_repository.dart';
 import 'package:lakshya/repository/web_graph_file_sync.dart';
+import 'package:lakshya/service/cloud_sync_config.dart';
+import 'package:lakshya/service/cloud_sync_registry.dart';
 import 'package:lakshya/service/graph_io.dart';
 import 'package:lakshya/service/id_generator.dart';
 import 'package:lakshya/service/schema_validator.dart';
@@ -223,6 +225,32 @@ void main() {
     expect(find.text('Pick a cloud-backed file'), findsOneWidget);
     expect(find.textContaining('does not log into Dropbox, Google Drive'), findsOneWidget);
     expect(find.text('Pick file'), findsOneWidget);
+  });
+
+  testWidgets('cloud provider registry renders setup cards', (tester) async {
+    final controller = GraphController(
+      initial: const LakshyaGraph.empty(),
+      save: (_) async {},
+      idGenerator: SequentialIdGenerator(),
+      clock: () => DateTime.utc(2026, 5, 24),
+    );
+    final registry = CloudSyncRegistry(
+      config: const CloudSyncConfig(isWeb: true),
+    );
+
+    await tester.pumpWidget(MaterialApp(
+      home: SettingsView(
+        controller: controller,
+        validator: validator,
+        cloudSyncRegistry: registry,
+      ),
+    ));
+
+    expect(find.text('Cloud provider sync'), findsOneWidget);
+    expect(find.text('Apple iCloud'), findsOneWidget);
+    expect(find.text('Dropbox'), findsOneWidget);
+    expect(find.text('Microsoft OneDrive'), findsOneWidget);
+    expect(find.text('Setup'), findsNWidgets(3));
   });
 }
 

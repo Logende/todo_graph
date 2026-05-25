@@ -15,6 +15,7 @@ import 'repository/local_file_graph_repository.dart';
 import 'repository/shared_preferences_graph_repository.dart';
 import 'repository/web_graph_file_sync.dart';
 import 'service/asset_seed_loader.dart';
+import 'service/cloud_sync_registry.dart';
 import 'service/id_generator.dart';
 import 'service/schema_validator.dart';
 
@@ -22,6 +23,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   final validator = await _loadSchemaValidator();
+  final cloudSyncRegistry = CloudSyncRegistry.fromEnvironment();
   final fileSync = const WebGraphFileSync();
   final fallback = await _buildFallbackRepository(validator);
 
@@ -58,6 +60,7 @@ Future<void> main() async {
     controller: controller,
     webFileSync: coordinator,
     fallbackRepository: fallback,
+    cloudSyncRegistry: cloudSyncRegistry,
     recoveryNotice: bootstrap.recoveryNotice,
   ));
 }

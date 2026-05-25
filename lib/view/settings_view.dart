@@ -7,6 +7,8 @@ import '../app/graph_controller.dart';
 import '../app/web_file_sync_coordinator.dart';
 import '../model/settings.dart';
 import '../repository/graph_repository.dart';
+import '../service/cloud_sync_provider.dart';
+import '../service/cloud_sync_registry.dart';
 import '../service/desktop_graph_file_io.dart';
 import '../service/graph_io.dart';
 import '../service/schema_validator.dart';
@@ -33,6 +35,7 @@ class SettingsView extends StatefulWidget {
     this.showDesktopFileActions,
     this.webFileSync,
     this.fallbackRepository,
+    this.cloudSyncRegistry,
   }) : _injectedValidator = validator;
 
   final GraphController controller;
@@ -49,6 +52,9 @@ class SettingsView extends StatefulWidget {
   /// The repository the controller falls back to when web file sync is
   /// disconnected.
   final GraphRepository? fallbackRepository;
+
+  /// Declarative registry of API-based cloud providers.
+  final CloudSyncRegistry? cloudSyncRegistry;
 
   @override
   State<SettingsView> createState() => _SettingsViewState();
@@ -271,6 +277,33 @@ class _SettingsViewState extends State<SettingsView> {
     );
   }
 
+  Future<void> _showCloudProviderInfo(
+    CloudSyncProviderDescriptor descriptor,
+  ) async {
+    final title = switch (descriptor.id) {
+      CloudSyncProviderId.iCloud => 'Apple iCloud',
+      CloudSyncProviderId.dropbox => 'Dropbox',
+      CloudSyncProviderId.oneDrive => 'Microsoft OneDrive',
+    };
+    await showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(title),
+        content: SingleChildScrollView(
+          child: Text(
+            '${descriptor.statusMessage}\n\n${descriptor.setupHint}',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -322,6 +355,13 @@ class _SettingsViewState extends State<SettingsView> {
                   suggestedFileName: _suggestedExportFileName(),
                   onMessage: _showSnack,
                   onError: _showErrorDialog,
+                ),
+                const Divider(),
+              ],
+              if (widget.cloudSyncRegistry != null) ...[
+                _CloudProviderSection(
+                  registry: widget.cloudSyncRegistry!,
+                  onInfo: _showCloudProviderInfo,
                 ),
                 const Divider(),
               ],
@@ -547,6 +587,58 @@ class _WebFileSyncSection extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _CloudProviderSection extends StatelessWidget {
+  const _CloudProviderSection({
+    required this.registry,
+    required this.onInfo,
+  });
+
+  final CloudSyncRegistry registry;
+  final ValueChanged<CloudSyncProviderDescriptor> onInfo;
+
+  @override
+  Widget build(BuildContext context) {
+    final descriptors = registry.describeAll();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const ListTile(
+          leading: Icon(Icons.cloud_queue_outlined),
+          title: Text('Cloud provider sync'),
+          subtitle: Text(
+            'Experimental API-based providers. Each service needs its own '
+            'developer app registration and credentials.',
+          ),
+        ),
+        for (final descriptor in descriptors)
+          ListTile(
+            leading: Icon(
+              switch (descriptor.status) {
+                CloudSyncProviderStatus.readyForImplementation =>
+                  Icons.check_circle_outline,
+                CloudSyncProviderStatus.missingConfiguration =>
+                  Icons.vpn_key_outlined,
+                CloudSyncProviderStatus.unsupportedPlatform =>
+                  Icons.block_outlined,
+              },
+            ),
+            title: Text(descriptor.title),
+            subtitle: Text(
+              '${descriptor.subtitle}\n${descriptor.statusMessage}',
+            ),
+            isThreeLine: true,
+            trailing: TextButton(
+              onPressed: () => onInfo(descriptor),
+              child: Text(
+                descriptor.canStartIntegration ? 'Details' : 'Setup',
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
