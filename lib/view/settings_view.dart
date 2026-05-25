@@ -643,60 +643,63 @@ class _CloudProviderSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final descriptors = registry.describeAll();
     final sync = coordinator;
+    Widget content() => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const ListTile(
+              leading: Icon(Icons.cloud_queue_outlined),
+              title: Text('Cloud provider sync'),
+              subtitle: Text(
+                'Experimental API-based iCloud sync. Requires a CloudKit '
+                'container and web API token.',
+              ),
+            ),
+            for (final descriptor in descriptors)
+              ListTile(
+                leading: Icon(
+                  switch (descriptor.status) {
+                    CloudSyncProviderStatus.readyForImplementation =>
+                      (sync?.isICloudActive ?? false)
+                          ? Icons.cloud_done_outlined
+                          : Icons.check_circle_outline,
+                    CloudSyncProviderStatus.missingConfiguration =>
+                      Icons.vpn_key_outlined,
+                    CloudSyncProviderStatus.unsupportedPlatform =>
+                      Icons.block_outlined,
+                  },
+                ),
+                title: Text(descriptor.title),
+                subtitle: Text(
+                  '${descriptor.subtitle}\n'
+                  '${descriptor.statusMessage}'
+                  '${sync?.isICloudActive == true ? '\nCurrently active.' : ''}',
+                ),
+                isThreeLine: true,
+                trailing: Wrap(
+                  spacing: 8,
+                  children: [
+                    if (descriptor.canStartIntegration && sync != null)
+                      TextButton(
+                        onPressed: sync.isICloudActive
+                            ? _disconnectICloud
+                            : _connectICloud,
+                        child: Text(sync.isICloudActive ? 'Stop' : 'Connect'),
+                      ),
+                    TextButton(
+                      onPressed: () => onInfo(descriptor),
+                      child: Text(
+                        descriptor.canStartIntegration ? 'Details' : 'Setup',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        );
+    if (sync == null) return content();
     return ListenableBuilder(
       listenable: sync,
-      builder: (context, _) => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const ListTile(
-            leading: Icon(Icons.cloud_queue_outlined),
-            title: Text('Cloud provider sync'),
-            subtitle: Text(
-              'Experimental API-based iCloud sync. Requires a CloudKit '
-              'container and web API token.',
-            ),
-          ),
-          for (final descriptor in descriptors)
-            ListTile(
-              leading: Icon(
-                switch (descriptor.status) {
-                  CloudSyncProviderStatus.readyForImplementation =>
-                    (sync?.isICloudActive ?? false)
-                        ? Icons.cloud_done_outlined
-                        : Icons.check_circle_outline,
-                  CloudSyncProviderStatus.missingConfiguration =>
-                    Icons.vpn_key_outlined,
-                  CloudSyncProviderStatus.unsupportedPlatform =>
-                    Icons.block_outlined,
-                },
-              ),
-              title: Text(descriptor.title),
-              subtitle: Text(
-                '${descriptor.subtitle}\n'
-                '${descriptor.statusMessage}'
-                '${sync?.isICloudActive == true ? '\nCurrently active.' : ''}',
-              ),
-              isThreeLine: true,
-              trailing: Wrap(
-                spacing: 8,
-                children: [
-                  if (descriptor.canStartIntegration && sync != null)
-                    TextButton(
-                      onPressed:
-                          sync.isICloudActive ? _disconnectICloud : _connectICloud,
-                      child: Text(sync.isICloudActive ? 'Stop' : 'Connect'),
-                    ),
-                  TextButton(
-                    onPressed: () => onInfo(descriptor),
-                    child: Text(
-                      descriptor.canStartIntegration ? 'Details' : 'Setup',
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
+      builder: (context, _) => content(),
     );
   }
 }

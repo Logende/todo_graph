@@ -11,10 +11,9 @@ class CloudSyncConfig {
   factory CloudSyncConfig.fromEnvironment() {
     return CloudSyncConfig(
       isWeb: kIsWeb,
-      iCloudContainerId: _env('LAKSHYA_ICLOUD_CONTAINER_ID'),
-      iCloudApiToken: _env('LAKSHYA_ICLOUD_API_TOKEN'),
-      iCloudEnvironment:
-          _env('LAKSHYA_ICLOUD_ENVIRONMENT') ?? 'development',
+      iCloudContainerId: _iCloudContainerId,
+      iCloudApiToken: _iCloudApiToken,
+      iCloudEnvironment: _iCloudEnvironment,
     );
   }
 
@@ -26,11 +25,25 @@ class CloudSyncConfig {
   bool get hasICloudConfig =>
       _hasValue(iCloudContainerId) && _hasValue(iCloudApiToken);
 
-  static String? _env(String name) {
-    const missing = '';
-    final value = String.fromEnvironment(name, defaultValue: missing).trim();
-    return value.isEmpty ? null : value;
-  }
-
   static bool _hasValue(String? value) => value != null && value.isNotEmpty;
 }
+
+const _rawICloudContainerId = String.fromEnvironment(
+  'LAKSHYA_ICLOUD_CONTAINER_ID',
+  defaultValue: '',
+);
+const _rawICloudApiToken = String.fromEnvironment(
+  'LAKSHYA_ICLOUD_API_TOKEN',
+  defaultValue: '',
+);
+const _rawICloudEnvironment = String.fromEnvironment(
+  'LAKSHYA_ICLOUD_ENVIRONMENT',
+  defaultValue: 'development',
+);
+
+final String? _iCloudContainerId =
+    _rawICloudContainerId.trim().isEmpty ? null : _rawICloudContainerId.trim();
+final String? _iCloudApiToken =
+    _rawICloudApiToken.trim().isEmpty ? null : _rawICloudApiToken.trim();
+final String _iCloudEnvironment =
+    _rawICloudEnvironment.trim().isEmpty ? 'development' : _rawICloudEnvironment.trim();

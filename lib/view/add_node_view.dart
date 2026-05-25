@@ -6,14 +6,10 @@ import '../model/completion.dart';
 import '../model/contribution.dart';
 import '../model/impact.dart';
 import '../model/node_status.dart';
+import 'status_form_enums.dart';
 import '../widgets/node_picker.dart';
 
 import 'view_helpers.dart';
-/// UI selectors for the activation axis.
-enum _ActivationChoice { alwaysActive, bounded }
-
-/// UI selectors for the completion axis. `none` means "background goal".
-enum _CompletionChoice { none, oneTime, nTimes, periodic }
 
 /// Form for creating a new node and linking it to an existing parent goal.
 ///
@@ -51,8 +47,8 @@ class _AddNodeViewState extends State<AddNodeView> {
   final _nTimesController = TextEditingController(text: '1');
 
   late String _parentId = widget.defaultParentId;
-  _ActivationChoice _activation = _ActivationChoice.alwaysActive;
-  _CompletionChoice _completion = _CompletionChoice.oneTime;
+  ActivationChoice _activation = ActivationChoice.alwaysActive;
+  CompletionChoice _completion = CompletionChoice.oneTime;
   Contribution _contribution = Contribution.mandatory;
   Impact? _impact;
   DateTime? _deadline;
@@ -69,8 +65,8 @@ class _AddNodeViewState extends State<AddNodeView> {
     final initialStatus = widget.initialStatus;
     if (initialStatus != null) {
       _activation = switch (initialStatus.activation) {
-        AlwaysActive() => _ActivationChoice.alwaysActive,
-        BoundedActive() => _ActivationChoice.bounded,
+        AlwaysActive() => ActivationChoice.alwaysActive,
+        BoundedActive() => ActivationChoice.bounded,
       };
       if (initialStatus.activation case final BoundedActive bounded) {
         _activeFrom = bounded.activeFrom;
@@ -79,16 +75,16 @@ class _AddNodeViewState extends State<AddNodeView> {
 
       switch (initialStatus.completion) {
         case null:
-          _completion = _CompletionChoice.none;
+          _completion = CompletionChoice.none;
         case OneTimeCompletion():
-          _completion = _CompletionChoice.oneTime;
+          _completion = CompletionChoice.oneTime;
         case NTimesCompletion(targetCount: final targetCount):
-          _completion = _CompletionChoice.nTimes;
+          _completion = CompletionChoice.nTimes;
           _nTimesController.text = '$targetCount';
         case PeriodicCompletion(
           intervalDaysSinceLastCompletion: final intervalDays,
         ):
-          _completion = _CompletionChoice.periodic;
+          _completion = CompletionChoice.periodic;
           _periodController.text = '$intervalDays';
       }
     }
@@ -105,9 +101,9 @@ class _AddNodeViewState extends State<AddNodeView> {
 
   ActivationWindow _buildActivation() {
     switch (_activation) {
-      case _ActivationChoice.alwaysActive:
+      case ActivationChoice.alwaysActive:
         return const AlwaysActive();
-      case _ActivationChoice.bounded:
+      case ActivationChoice.bounded:
         // Either or both can be null — the model accepts open-ended windows.
         // When both are set, clamp so until >= from.
         final from = _activeFrom;
@@ -121,14 +117,14 @@ class _AddNodeViewState extends State<AddNodeView> {
 
   Completion? _buildCompletion() {
     return switch (_completion) {
-      _CompletionChoice.none => null,
-      _CompletionChoice.oneTime => const OneTimeCompletion(),
+      CompletionChoice.none => null,
+      CompletionChoice.oneTime => const OneTimeCompletion(),
       // validatePositiveInt has already gated the submit on these fields
       // being valid positive integers, so int.parse is safe here.
-      _CompletionChoice.nTimes => NTimesCompletion(
+      CompletionChoice.nTimes => NTimesCompletion(
           targetCount: int.parse(_nTimesController.text),
         ),
-      _CompletionChoice.periodic => PeriodicCompletion(
+      CompletionChoice.periodic => PeriodicCompletion(
           intervalDaysSinceLastCompletion: int.parse(_periodController.text),
         ),
     };
@@ -221,17 +217,17 @@ class _AddNodeViewState extends State<AddNodeView> {
             Text('Activation',
                 style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 8),
-            DropdownButtonFormField<_ActivationChoice>(
+            DropdownButtonFormField<ActivationChoice>(
               initialValue: _activation,
               decoration:
                   const InputDecoration(labelText: 'When is this active'),
               items: const [
                 DropdownMenuItem(
-                  value: _ActivationChoice.alwaysActive,
+                  value: ActivationChoice.alwaysActive,
                   child: Text('Always active'),
                 ),
                 DropdownMenuItem(
-                  value: _ActivationChoice.bounded,
+                  value: ActivationChoice.bounded,
                   child: Text('Only during a time window'),
                 ),
               ],
@@ -239,7 +235,7 @@ class _AddNodeViewState extends State<AddNodeView> {
                 if (v != null) _activation = v;
               }),
             ),
-            if (_activation == _ActivationChoice.bounded) ...[
+            if (_activation == ActivationChoice.bounded) ...[
               const SizedBox(height: 12),
               _DatePickerRow(
                 label: 'Active from (optional)',
@@ -267,26 +263,26 @@ class _AddNodeViewState extends State<AddNodeView> {
             Text('Completion',
                 style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 8),
-            DropdownButtonFormField<_CompletionChoice>(
+            DropdownButtonFormField<CompletionChoice>(
               initialValue: _completion,
               decoration: const InputDecoration(
                 labelText: 'How is this completed',
               ),
               items: const [
                 DropdownMenuItem(
-                  value: _CompletionChoice.oneTime,
+                  value: CompletionChoice.oneTime,
                   child: Text('Once (one-shot)'),
                 ),
                 DropdownMenuItem(
-                  value: _CompletionChoice.nTimes,
+                  value: CompletionChoice.nTimes,
                   child: Text('A fixed number of times'),
                 ),
                 DropdownMenuItem(
-                  value: _CompletionChoice.periodic,
+                  value: CompletionChoice.periodic,
                   child: Text('Recurring (period from last completion)'),
                 ),
                 DropdownMenuItem(
-                  value: _CompletionChoice.none,
+                  value: CompletionChoice.none,
                   child: Text('Background goal (no completion)'),
                 ),
               ],
@@ -294,7 +290,7 @@ class _AddNodeViewState extends State<AddNodeView> {
                 if (v != null) _completion = v;
               }),
             ),
-            if (_completion == _CompletionChoice.nTimes) ...[
+            if (_completion == CompletionChoice.nTimes) ...[
               const SizedBox(height: 12),
               TextFormField(
                 controller: _nTimesController,
@@ -303,7 +299,7 @@ class _AddNodeViewState extends State<AddNodeView> {
                 validator: validatePositiveInt,
               ),
             ],
-            if (_completion == _CompletionChoice.periodic) ...[
+            if (_completion == CompletionChoice.periodic) ...[
               const SizedBox(height: 12),
               TextFormField(
                 controller: _periodController,
