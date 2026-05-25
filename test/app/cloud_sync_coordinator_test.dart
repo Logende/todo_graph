@@ -26,7 +26,7 @@ class _FakeRepository implements GraphRepository {
 }
 
 void main() {
-  test('startICloudSync loads remote graph when one exists', () async {
+  test('startOneDriveSync loads remote graph when one exists', () async {
     final fallback = _FakeRepository();
     final remoteGraph = LakshyaGraph(
       nodes: [buildNode('root', title: 'Remote Root')],
@@ -46,16 +46,16 @@ void main() {
       controller: controller,
       fallbackRepository: fallback,
       config: const CloudSyncConfig(isWeb: true),
-      connectICloud: (_) async => cloud,
+      connectOneDrive: (_) async => cloud,
     );
 
-    await coordinator.startICloudSync();
+    await coordinator.startOneDriveSync();
 
-    expect(coordinator.activeProviderId, CloudSyncProviderId.iCloud);
+    expect(coordinator.activeProviderId, CloudSyncProviderId.oneDrive);
     expect(controller.graph, remoteGraph);
   });
 
-  test('startICloudSync seeds the cloud when no remote graph exists', () async {
+  test('startOneDriveSync seeds the cloud when no remote graph exists', () async {
     final fallback = _FakeRepository();
     final localGraph = LakshyaGraph(
       nodes: [buildNode('root', title: 'Local Root')],
@@ -72,12 +72,12 @@ void main() {
       controller: controller,
       fallbackRepository: fallback,
       config: const CloudSyncConfig(isWeb: true),
-      connectICloud: (_) async => cloud,
+      connectOneDrive: (_) async => cloud,
     );
 
-    await coordinator.startICloudSync();
+    await coordinator.startOneDriveSync();
 
-    expect(coordinator.activeProviderId, CloudSyncProviderId.iCloud);
+    expect(coordinator.activeProviderId, CloudSyncProviderId.oneDrive);
     expect(cloud.saved, localGraph);
   });
 
@@ -97,10 +97,10 @@ void main() {
       controller: controller,
       fallbackRepository: fallback,
       config: const CloudSyncConfig(isWeb: true),
-      connectICloud: (_) async => cloud,
+      connectOneDrive: (_) async => cloud,
     );
 
-    await coordinator.startICloudSync();
+    await coordinator.startOneDriveSync();
     await coordinator.stopSync();
     controller.addChildNode(
       title: 'Task',

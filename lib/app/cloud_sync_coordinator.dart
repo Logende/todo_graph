@@ -1,12 +1,11 @@
 import 'package:flutter/foundation.dart';
 
 import '../repository/graph_repository.dart';
-import '../repository/icloud_graph_repository.dart';
 import '../service/cloud_sync_config.dart';
 import '../service/cloud_sync_provider.dart';
 import 'graph_controller.dart';
 
-typedef ICloudConnector = Future<GraphRepository> Function(
+typedef ProviderConnector = Future<GraphRepository> Function(
   CloudSyncConfig config,
 );
 
@@ -15,25 +14,26 @@ class CloudSyncCoordinator extends ChangeNotifier {
     required this.controller,
     required this.fallbackRepository,
     required this.config,
-    this.connectICloud = _defaultICloudConnector,
+    required this.connectOneDrive,
   });
 
   final GraphController controller;
   final GraphRepository fallbackRepository;
   final CloudSyncConfig config;
-  final ICloudConnector connectICloud;
+  final ProviderConnector connectOneDrive;
 
   CloudSyncProviderId? _activeProviderId;
   CloudSyncProviderId? get activeProviderId => _activeProviderId;
 
   bool get isActive => _activeProviderId != null;
-  bool get isICloudActive => _activeProviderId == CloudSyncProviderId.iCloud;
+  bool get isOneDriveActive =>
+      _activeProviderId == CloudSyncProviderId.oneDrive;
 
-  Future<void> startICloudSync() async {
-    final repository = await connectICloud(config);
+  Future<void> startOneDriveSync() async {
+    final repository = await connectOneDrive(config);
     await _adoptRepository(
       repository,
-      providerId: CloudSyncProviderId.iCloud,
+      providerId: CloudSyncProviderId.oneDrive,
     );
   }
 
@@ -56,11 +56,5 @@ class CloudSyncCoordinator extends ChangeNotifier {
     }
     _activeProviderId = providerId;
     notifyListeners();
-  }
-
-  static Future<GraphRepository> _defaultICloudConnector(
-    CloudSyncConfig config,
-  ) {
-    return connectICloudGraphRepository(config);
   }
 }

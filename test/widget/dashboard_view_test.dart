@@ -45,8 +45,7 @@ void main() {
       home: DashboardView(controller: controller),
     ));
 
-    expect(find.text('All ongoing'), findsOneWidget);
-    expect(find.text('All goals'), findsOneWidget);
+    expect(find.text('All'), findsOneWidget);
     expect(find.text('Work'), findsOneWidget);
   });
 
@@ -142,7 +141,7 @@ void main() {
       home: DashboardView(controller: controller),
     ));
 
-    await tester.tap(find.text('All goals'));
+    await tester.tap(find.text('All'));
     await tester.pumpAndSettle();
 
     expect(find.byType(TodoListView), findsOneWidget);

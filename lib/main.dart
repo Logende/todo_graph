@@ -13,6 +13,7 @@ import 'app/web_file_sync_coordinator.dart';
 import 'model/lakshya_graph.dart';
 import 'repository/graph_repository.dart';
 import 'repository/local_file_graph_repository.dart';
+import 'repository/onedrive_graph_repository.dart';
 import 'repository/shared_preferences_graph_repository.dart';
 import 'repository/web_graph_file_sync.dart';
 import 'service/asset_seed_loader.dart';
@@ -60,6 +61,7 @@ Future<void> main() async {
     controller: controller,
     fallbackRepository: fallback,
     config: cloudSyncRegistry.config,
+    connectOneDrive: connectOneDriveGraphRepository,
   );
 
   runApp(LakshyaApp(

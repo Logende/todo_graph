@@ -25,7 +25,7 @@ void main() {
     await tester.pumpWidget(MaterialApp(
       home: TodoListView(
         controller: controller,
-        title: 'All goals',
+        title: 'All',
         filter: const Filter(),
         nowFactory: () => DateTime.utc(2026, 5, 24, 12),
       ),

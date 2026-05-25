@@ -43,18 +43,11 @@ class DashboardView extends StatelessWidget {
   final CloudSyncRegistry? cloudSyncRegistry;
   final CloudSyncCoordinator? cloudSyncCoordinator;
 
-  static const _alwaysOnTiles = [
-    _BuiltInTile(
-      title: 'All ongoing',
-      icon: Icons.local_fire_department_outlined,
-      filter: Filter(onlyOngoing: true, onlyLeaves: true),
-    ),
-    _BuiltInTile(
-      title: 'All goals',
-      icon: Icons.account_tree_outlined,
-      filter: Filter(),
-    ),
-  ];
+  static const _builtInTile = _BuiltInTile(
+    title: 'All',
+    icon: Icons.account_tree_outlined,
+    filter: Filter(),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -115,13 +108,16 @@ class DashboardView extends StatelessWidget {
               crossAxisSpacing: kTileGridSpacing,
               childAspectRatio: kTileAspectRatio,
               children: [
-                for (final tile in _alwaysOnTiles)
-                  _Tile(
-                    title: tile.title,
-                    icon: tile.icon,
-                    badge: _actionableCount(tile.filter, now),
-                    onTap: () => _openList(context, tile.title, tile.filter),
+                _Tile(
+                  title: _builtInTile.title,
+                  icon: _builtInTile.icon,
+                  badge: _actionableCount(_builtInTile.filter, now),
+                  onTap: () => _openList(
+                    context,
+                    _builtInTile.title,
+                    _builtInTile.filter,
                   ),
+                ),
                 _Tile(
                   title: 'Graph',
                   icon: Icons.hub_outlined,

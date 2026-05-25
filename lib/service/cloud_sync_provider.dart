@@ -1,6 +1,6 @@
 import 'cloud_sync_config.dart';
 
-enum CloudSyncProviderId { iCloud }
+enum CloudSyncProviderId { oneDrive }
 
 enum CloudSyncProviderStatus {
   readyForImplementation,
@@ -35,44 +35,44 @@ abstract class CloudSyncProvider {
   CloudSyncProviderDescriptor describe(CloudSyncConfig config);
 }
 
-class ICloudCloudSyncProvider extends CloudSyncProvider {
-  const ICloudCloudSyncProvider();
+class OneDriveCloudSyncProvider extends CloudSyncProvider {
+  const OneDriveCloudSyncProvider();
 
   @override
   CloudSyncProviderDescriptor describe(CloudSyncConfig config) {
     if (!config.isWeb) {
       return const CloudSyncProviderDescriptor(
-        id: CloudSyncProviderId.iCloud,
-        title: 'Apple iCloud',
-        subtitle: 'CloudKit-backed app storage for Apple users on the web.',
+        id: CloudSyncProviderId.oneDrive,
+        title: 'Microsoft OneDrive',
+        subtitle: 'OneDrive-backed app storage for web and mobile Safari.',
         status: CloudSyncProviderStatus.unsupportedPlatform,
-        statusMessage: 'Only the web build can use CloudKit JS.',
+        statusMessage: 'Only the web build can use browser-based OneDrive auth.',
         setupHint:
-            'Provide LAKSHYA_ICLOUD_CONTAINER_ID and LAKSHYA_ICLOUD_API_TOKEN '
-            'when building the web app.',
+            'Provide LAKSHYA_ONEDRIVE_APP_ID and '
+            'LAKSHYA_ONEDRIVE_REDIRECT_URI when building the web app.',
       );
     }
-    if (!config.hasICloudConfig) {
+    if (!config.hasOneDriveConfig) {
       return const CloudSyncProviderDescriptor(
-        id: CloudSyncProviderId.iCloud,
-        title: 'Apple iCloud',
-        subtitle: 'Uses CloudKit rather than browsing arbitrary iCloud Drive files.',
+        id: CloudSyncProviderId.oneDrive,
+        title: 'Microsoft OneDrive',
+        subtitle: 'Uses Microsoft Graph app-folder storage behind OneDrive auth.',
         status: CloudSyncProviderStatus.missingConfiguration,
-        statusMessage: 'Missing CloudKit container ID or API token.',
+        statusMessage: 'Missing OneDrive app id or redirect URI.',
         setupHint:
-            'Create a CloudKit container, enable web services, then set '
-            'LAKSHYA_ICLOUD_CONTAINER_ID and LAKSHYA_ICLOUD_API_TOKEN.',
+            'Register a Microsoft Entra app, allow browser sign-in, then set '
+            'LAKSHYA_ONEDRIVE_APP_ID and LAKSHYA_ONEDRIVE_REDIRECT_URI.',
       );
     }
     return const CloudSyncProviderDescriptor(
-      id: CloudSyncProviderId.iCloud,
-      title: 'Apple iCloud',
-      subtitle: 'Uses CloudKit rather than browsing arbitrary iCloud Drive files.',
+      id: CloudSyncProviderId.oneDrive,
+      title: 'Microsoft OneDrive',
+      subtitle: 'Uses Microsoft Graph app-folder storage behind OneDrive auth.',
       status: CloudSyncProviderStatus.readyForImplementation,
-      statusMessage: 'CloudKit credentials are configured.',
+      statusMessage: 'OneDrive app configuration is present.',
       setupHint:
-          'Next implementation step: sign in with CloudKit JS and store the '
-          'graph in the user’s private database.',
+          'Next implementation step: sign in via Microsoft and store the '
+          'graph in the user app folder in OneDrive.',
     );
   }
 }

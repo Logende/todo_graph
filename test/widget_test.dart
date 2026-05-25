@@ -31,8 +31,7 @@ void main() {
     await tester.pumpWidget(LakshyaApp(controller: controller));
 
     expect(find.text('Lakshya'), findsOneWidget);
-    expect(find.text('All ongoing'), findsOneWidget);
-    expect(find.text('All goals'), findsOneWidget);
+    expect(find.text('All'), findsOneWidget);
     expect(find.widgetWithText(FloatingActionButton, 'Add task'),
         findsOneWidget);
   });

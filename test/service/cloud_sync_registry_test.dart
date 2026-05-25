@@ -4,24 +4,24 @@ import 'package:lakshya/service/cloud_sync_provider.dart';
 import 'package:lakshya/service/cloud_sync_registry.dart';
 
 void main() {
-  test('describes the iCloud provider', () {
+  test('describes the OneDrive provider', () {
     final registry = CloudSyncRegistry(
       config: const CloudSyncConfig(isWeb: true),
     );
 
     final descriptors = registry.describeAll();
 
-    expect(descriptors.map((d) => d.id), [CloudSyncProviderId.iCloud]);
+    expect(descriptors.map((d) => d.id), [CloudSyncProviderId.oneDrive]);
   });
 
-  test('iCloud becomes ready when CloudKit config is present', () {
+  test('OneDrive becomes ready when app config is present', () {
     final registry = CloudSyncRegistry(
       config: const CloudSyncConfig(
         isWeb: true,
-        iCloudContainerId: 'iCloud.example.todo',
-        iCloudApiToken: 'token',
+        oneDriveAppId: 'client-id',
+        oneDriveRedirectUri: 'https://logende.github.io/todo_graph/',
       ),
-      providers: const [ICloudCloudSyncProvider()],
+      providers: const [OneDriveCloudSyncProvider()],
     );
 
     final descriptor = registry.describeAll().single;
@@ -32,10 +32,10 @@ void main() {
     );
   });
 
-  test('iCloud reports missing config by default', () {
+  test('OneDrive reports missing config by default', () {
     final registry = CloudSyncRegistry(
       config: const CloudSyncConfig(isWeb: true),
-      providers: const [ICloudCloudSyncProvider()],
+      providers: const [OneDriveCloudSyncProvider()],
     );
 
     final descriptor = registry.describeAll().single;

@@ -227,7 +227,7 @@ void main() {
     expect(find.text('Pick file'), findsOneWidget);
   });
 
-  testWidgets('cloud provider registry renders the iCloud setup card',
+  testWidgets('cloud provider registry renders the OneDrive setup card',
       (tester) async {
     final controller = GraphController(
       initial: const LakshyaGraph.empty(),
@@ -248,7 +248,7 @@ void main() {
     ));
 
     expect(find.text('Cloud provider sync'), findsOneWidget);
-    expect(find.text('Apple iCloud'), findsOneWidget);
+    expect(find.text('Microsoft OneDrive'), findsOneWidget);
     expect(find.text('Setup'), findsOneWidget);
   });
 }

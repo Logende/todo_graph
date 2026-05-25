@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>OneDrive Sign-In Complete</title>
+</head>
+<body>
+  <script>
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      const payload = {
+        type: 'lakshya-onedrive-auth',
+        code: params.get('code'),
+        state: params.get('state'),
+        error: params.get('error'),
+        error_description: params.get('error_description')
+      };
+      if (window.opener) {
+        window.opener.postMessage(payload, window.location.origin);
+      }
+      window.close();
+    })();
+  </script>
+</body>
+</html>

@@ -286,7 +286,7 @@ class _SettingsViewState extends State<SettingsView> {
     CloudSyncProviderDescriptor descriptor,
   ) async {
     final title = switch (descriptor.id) {
-      CloudSyncProviderId.iCloud => 'Apple iCloud',
+      CloudSyncProviderId.oneDrive => 'Microsoft OneDrive',
     };
     await showDialog<void>(
       context: context,
@@ -612,7 +612,7 @@ class _CloudProviderSection extends StatelessWidget {
   final Future<void> Function(String title, String body) onError;
   final ValueChanged<CloudSyncProviderDescriptor> onInfo;
 
-  Future<void> _connectICloud() async {
+  Future<void> _connectOneDrive() async {
     final sync = coordinator;
     if (sync == null) {
       await onError(
@@ -622,21 +622,23 @@ class _CloudProviderSection extends StatelessWidget {
       return;
     }
     try {
-      await sync.startICloudSync();
+      await sync.startOneDriveSync();
       onMessage(
-        'Now syncing directly with Apple iCloud. The file-based sync options '
-        'remain available separately.',
+        'Now syncing directly with Microsoft OneDrive. The file-based sync '
+        'options remain available separately.',
       );
     } catch (e) {
-      await onError('Could not start iCloud sync', e.toString());
+      await onError('Could not start OneDrive sync', e.toString());
     }
   }
 
-  Future<void> _disconnectICloud() async {
+  Future<void> _disconnectOneDrive() async {
     final sync = coordinator;
     if (sync == null) return;
     await sync.stopSync();
-    onMessage('Stopped iCloud sync — saves now go back to the default storage.');
+    onMessage(
+      'Stopped OneDrive sync — saves now go back to the default storage.',
+    );
   }
 
   @override
@@ -650,8 +652,8 @@ class _CloudProviderSection extends StatelessWidget {
               leading: Icon(Icons.cloud_queue_outlined),
               title: Text('Cloud provider sync'),
               subtitle: Text(
-                'Experimental API-based iCloud sync. Requires a CloudKit '
-                'container and web API token.',
+                'Experimental API-based OneDrive sync. Requires a Microsoft '
+                'app registration for browser sign-in.',
               ),
             ),
             for (final descriptor in descriptors)
@@ -659,7 +661,7 @@ class _CloudProviderSection extends StatelessWidget {
                 leading: Icon(
                   switch (descriptor.status) {
                     CloudSyncProviderStatus.readyForImplementation =>
-                      (sync?.isICloudActive ?? false)
+                      (sync?.isOneDriveActive ?? false)
                           ? Icons.cloud_done_outlined
                           : Icons.check_circle_outline,
                     CloudSyncProviderStatus.missingConfiguration =>
@@ -672,7 +674,7 @@ class _CloudProviderSection extends StatelessWidget {
                 subtitle: Text(
                   '${descriptor.subtitle}\n'
                   '${descriptor.statusMessage}'
-                  '${sync?.isICloudActive == true ? '\nCurrently active.' : ''}',
+                  '${sync?.isOneDriveActive == true ? '\nCurrently active.' : ''}',
                 ),
                 isThreeLine: true,
                 trailing: Wrap(
@@ -680,10 +682,10 @@ class _CloudProviderSection extends StatelessWidget {
                   children: [
                     if (descriptor.canStartIntegration && sync != null)
                       TextButton(
-                        onPressed: sync.isICloudActive
-                            ? _disconnectICloud
-                            : _connectICloud,
-                        child: Text(sync.isICloudActive ? 'Stop' : 'Connect'),
+                        onPressed: sync.isOneDriveActive
+                            ? _disconnectOneDrive
+                            : _connectOneDrive,
+                        child: Text(sync.isOneDriveActive ? 'Stop' : 'Connect'),
                       ),
                     TextButton(
                       onPressed: () => onInfo(descriptor),
