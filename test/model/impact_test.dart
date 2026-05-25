@@ -11,7 +11,7 @@ void main() {
         Impact.high,
         Impact.critical,
       ]));
-      var previousWeight = 0.0;
+      var previousWeight = 0;
       for (final level in Impact.values) {
         expect(level.weight, greaterThan(previousWeight));
         previousWeight = level.weight;

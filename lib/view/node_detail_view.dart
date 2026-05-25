@@ -15,6 +15,7 @@ import '../service/external_url_opener.dart';
 import '../service/node_queries.dart';
 import '../widgets/node_picker.dart';
 
+import 'view_helpers.dart';
 /// Inspector for a single node: shows its description and status, lists its
 /// parent edges and its non-structural relationships with remove actions,
 /// and exposes "Add relationship" and "Delete node" actions.
@@ -473,9 +474,9 @@ class _StatusSummary extends StatelessWidget {
     final lines = <String>[activationLabel, completionLabel];
     final inheritedDeadline = queries.inheritedDeadline(node.id);
     if (node.deadline != null) {
-      lines.add('Deadline: ${_formatDate(node.deadline!)}');
+      lines.add('Deadline: ${formatDate(node.deadline!)}');
     } else if (inheritedDeadline != null) {
-      lines.add('Deadline: ${_formatDate(inheritedDeadline)} (inherited)');
+      lines.add('Deadline: ${formatDate(inheritedDeadline)} (inherited)');
     }
     if (node.impact != null) {
       lines.add('Impact: ${node.impact!.name}');
@@ -505,10 +506,6 @@ class _StatusSummary extends StatelessWidget {
     return c.kind;
   }
 
-  String _formatDate(DateTime dt) =>
-      '${dt.year.toString().padLeft(4, '0')}-'
-      '${dt.month.toString().padLeft(2, '0')}-'
-      '${dt.day.toString().padLeft(2, '0')}';
 }
 
 class _ParentTile extends StatelessWidget {
@@ -739,21 +736,10 @@ class _NodeEditorDialogState extends State<_NodeEditorDialog> {
     }
   }
 
-  /// Validator used by the n-times / periodic numeric fields. Returns null
-  /// on success, or an error string to show inline.
-  String? _validatePositiveInt(String? raw) {
-    final trimmed = raw?.trim() ?? '';
-    if (trimmed.isEmpty) return 'Required';
-    final parsed = int.tryParse(trimmed);
-    if (parsed == null) return 'Must be a whole number';
-    if (parsed < 1) return 'Must be at least 1';
-    return null;
-  }
-
   String? _validateOptionalPositiveInt(String? raw) {
     final trimmed = raw?.trim() ?? '';
     if (trimmed.isEmpty) return null;
-    return _validatePositiveInt(trimmed);
+    return validatePositiveInt(trimmed);
   }
 
   void _submit() {
@@ -875,13 +861,13 @@ class _NodeEditorDialogState extends State<_NodeEditorDialog> {
                   _DateRow(
                     label: _activeFrom == null
                         ? 'Active from'
-                        : 'Active from: ${_formatDate(_activeFrom!)}',
+                        : 'Active from: ${formatDate(_activeFrom!)}',
                     onPick: _pickActiveFrom,
                   ),
                   _DateRow(
                     label: _activeUntil == null
                         ? 'Active until'
-                        : 'Active until: ${_formatDate(_activeUntil!)}',
+                        : 'Active until: ${formatDate(_activeUntil!)}',
                     onPick: _pickActiveUntil,
                   ),
                 ],
@@ -922,7 +908,7 @@ class _NodeEditorDialogState extends State<_NodeEditorDialog> {
                     decoration:
                         const InputDecoration(labelText: 'Target count'),
                     keyboardType: TextInputType.number,
-                    validator: _validatePositiveInt,
+                    validator: validatePositiveInt,
                   ),
                 ],
                 if (_completion == _CompletionChoice.periodic) ...[
@@ -933,7 +919,7 @@ class _NodeEditorDialogState extends State<_NodeEditorDialog> {
                       labelText: 'Interval (days since last completion)',
                     ),
                     keyboardType: TextInputType.number,
-                    validator: _validatePositiveInt,
+                    validator: validatePositiveInt,
                   ),
                 ],
                 const SizedBox(height: 20),
@@ -982,7 +968,7 @@ class _NodeEditorDialogState extends State<_NodeEditorDialog> {
                     for (final level in Impact.values)
                       DropdownMenuItem<Impact?>(
                         value: level,
-                        child: Text(_impactLabel(level)),
+                        child: Text(impactLabel(level)),
                       ),
                   ],
                   onChanged: (v) => setState(() => _impact = v),
@@ -993,7 +979,7 @@ class _NodeEditorDialogState extends State<_NodeEditorDialog> {
                   title: Text(
                     _deadline == null
                         ? 'No deadline'
-                        : 'Deadline: ${_formatDate(_deadline!)}',
+                        : 'Deadline: ${formatDate(_deadline!)}',
                   ),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -1146,7 +1132,7 @@ class _TimeTriggerAttachmentTile extends StatelessWidget {
         color: Theme.of(context).colorScheme.primary,
       ),
       title: Text(attachment.label ?? 'Reminder'),
-      subtitle: Text('Triggers at ${_formatDateTime(attachment.triggerAt)}'),
+      subtitle: Text('Triggers at ${formatDateTime(attachment.triggerAt)}'),
       trailing: IconButton(
         tooltip: 'Remove attachment',
         icon: const Icon(Icons.close),
@@ -1342,7 +1328,7 @@ class _TimeTriggerAttachmentDialogState
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.calendar_today_outlined),
-              title: Text('Date: ${_formatDate(_triggerAt)}'),
+              title: Text('Date: ${formatDate(_triggerAt)}'),
               onTap: _pickDate,
             ),
             ListTile(
@@ -1370,20 +1356,5 @@ class _TimeTriggerAttachmentDialogState
   }
 }
 
-String _impactLabel(Impact level) => switch (level) {
-      Impact.minimal => 'Minimal',
-      Impact.low => 'Low',
-      Impact.medium => 'Medium',
-      Impact.high => 'High',
-      Impact.critical => 'Critical',
-    };
 
-String _formatDate(DateTime dt) =>
-    '${dt.year.toString().padLeft(4, '0')}-'
-    '${dt.month.toString().padLeft(2, '0')}-'
-    '${dt.day.toString().padLeft(2, '0')}';
 
-String _formatDateTime(DateTime dt) =>
-    '${_formatDate(dt)} '
-    '${dt.hour.toString().padLeft(2, '0')}:'
-    '${dt.minute.toString().padLeft(2, '0')}';

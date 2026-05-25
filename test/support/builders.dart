@@ -1,8 +1,12 @@
 import 'package:lakshya/model/contribution.dart';
 import 'package:lakshya/model/edge.dart';
+import 'package:lakshya/model/filter_preset.dart';
 import 'package:lakshya/model/impact.dart';
+import 'package:lakshya/model/lakshya_graph.dart';
 import 'package:lakshya/model/node.dart';
+import 'package:lakshya/model/node_relationship.dart';
 import 'package:lakshya/model/node_status.dart';
+import 'package:lakshya/model/settings.dart';
 
 /// Default `createdAt` used by [buildNode]. Centralised so tests can sort or
 /// compare against a known reference without coupling to the wall clock.
@@ -30,6 +34,25 @@ Node buildNode(
     createdAt: createdAt ?? defaultCreatedAt,
     deadline: deadline,
     impact: impact,
+  );
+}
+
+/// Builds a LakshyaGraph with sensible defaults for tests. Every field is
+/// optional and defaults to empty / null so only the relevant setup for
+/// the test under consideration needs to be specified.
+LakshyaGraph buildGraph({
+  List<Node>? nodes,
+  List<Edge>? edges,
+  List<NodeRelationship>? relationships,
+  List<FilterPreset>? filterPresets,
+  Settings? settings,
+}) {
+  return LakshyaGraph(
+    nodes: nodes ?? const [],
+    edges: edges ?? const [],
+    relationships: relationships ?? const [],
+    filterPresets: filterPresets ?? const [],
+    settings: settings,
   );
 }
 

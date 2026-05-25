@@ -13,7 +13,7 @@ enum Impact {
 
   const Impact({required this.weight});
 
-  final double weight;
+  final int weight;
 
   String toJsonValue() => name;
 

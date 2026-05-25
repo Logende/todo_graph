@@ -50,6 +50,16 @@ void main() {
           _oneTime('write-paper'),
           _oneTime('done-thing', completedAt: DateTime.utc(2026, 5, 20)),
           _alwaysOn('llm-paper', description: 'urgent llm paper'),
+          buildNode(
+            'past-event',
+            status: NodeStatus(
+              activation: BoundedActive(
+                activeFrom: DateTime.utc(2026, 4, 1),
+                activeUntil: DateTime.utc(2026, 4, 15),
+              ),
+              completion: const OneTimeCompletion(),
+            ),
+          ),
         ],
         edges: [
           buildEdge('e1', from: 'health', to: 'root'),
@@ -71,6 +81,9 @@ void main() {
           reason: 'periodic tasks in cool-down are hidden by default');
       expect(result.any((n) => n.id == 'conference'), isFalse,
           reason: 'future-window tasks are hidden by default');
+      expect(result.any((n) => n.id == 'past-event'), isFalse,
+          reason: 'past-window tasks (activeUntil in the past) are '
+              'also hidden by default');
     });
 
     test('showCompletedTasks=false hides fully completed one-time tasks', () {
@@ -179,7 +192,7 @@ void main() {
         onlyLeaves: true,
       ));
       expect(result.map((n) => n.id).toSet(),
-          equals({'pushday', 'conference', 'done-thing'}));
+          equals({'pushday', 'conference', 'done-thing', 'past-event'}));
       expect(result.any((n) => n.id == 'llm-paper'), isFalse,
           reason: 'background goals are not actionable leaf tasks');
     });

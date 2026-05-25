@@ -63,14 +63,7 @@ class ManagePresetsView extends StatelessWidget {
     // Renumber the ordering field so the dashboard reflects the new order
     // even after a reload.
     final renumbered = [
-      for (var i = 0; i < next.length; i++)
-        FilterPreset(
-          id: next[i].id,
-          title: next[i].title,
-          filter: next[i].filter,
-          iconName: next[i].iconName,
-          ordering: i,
-        ),
+      for (var i = 0; i < next.length; i++) next[i].copyWith(ordering: i),
     ];
     controller.setFilterPresets(renumbered);
   }
@@ -82,15 +75,8 @@ class ManagePresetsView extends StatelessWidget {
     );
     if (result == null || result.isEmpty || result == preset.title) return;
     final next = controller.graph.filterPresets
-        .map((p) => p.id == preset.id
-            ? FilterPreset(
-                id: p.id,
-                title: result,
-                filter: p.filter,
-                iconName: p.iconName,
-                ordering: p.ordering,
-              )
-            : p)
+        .map((p) =>
+            p.id == preset.id ? p.copyWith(title: result) : p)
         .toList(growable: false);
     controller.setFilterPresets(next);
   }

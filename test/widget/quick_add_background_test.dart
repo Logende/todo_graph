@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lakshya/app/graph_controller.dart';
+import 'package:lakshya/model/completion.dart';
 import 'package:lakshya/model/contribution.dart';
 import 'package:lakshya/model/filter.dart';
 import 'package:lakshya/model/impact.dart';
@@ -146,5 +147,43 @@ void main() {
     );
     expect(added.impact, Impact.high);
     expect(added.deadline, DateTime(2026, 5, 30));
+  });
+
+  testWidgets('quick-add "Every 3 days" produces a periodic-3 completion',
+      (tester) async {
+    final graph = LakshyaGraph(
+      nodes: [buildNode('root')],
+      edges: const [],
+    );
+    final controller = GraphController(
+      initial: graph,
+      save: (_) async {},
+      idGenerator: SequentialIdGenerator('n'),
+      clock: () => DateTime.utc(2026, 5, 24, 12),
+    );
+
+    await tester.pumpWidget(MaterialApp(
+      home: TodoListView(
+        controller: controller,
+        title: 'All goals',
+        filter: const Filter(),
+        nowFactory: () => DateTime.utc(2026, 5, 24, 12),
+      ),
+    ));
+
+    await tester.tap(find.byTooltip('Add child'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Every 3 days'));
+    await tester.pump();
+    await tester.enterText(find.byType(TextField), 'Push day');
+    await tester.tap(find.widgetWithText(FilledButton, 'Add'));
+    await tester.pumpAndSettle();
+
+    final added = controller.graph.nodes.firstWhere(
+      (n) => n.title == 'Push day',
+    );
+    expect(added.status.completion, isA<PeriodicCompletion>());
+    final periodic = added.status.completion as PeriodicCompletion;
+    expect(periodic.intervalDaysSinceLastCompletion, 3);
   });
 }

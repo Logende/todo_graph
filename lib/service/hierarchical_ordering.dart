@@ -4,6 +4,7 @@ import '../model/node.dart';
 import '../model/node_relationship.dart';
 import 'node_ordering.dart';
 
+import 'compare_utils.dart';
 /// Arranges a list of nodes into an indented tree.
 ///
 /// The tree's parent/child structure comes from [Edge]s whose endpoints are
@@ -92,9 +93,9 @@ class HierarchicalOrdering {
         for (final childId in childrenByParent[id] ?? const <String>[]) {
           final childEffective = compute(childId, {...visiting});
           aggregatedDeadline =
-              _earliest(aggregatedDeadline, childEffective.deadline);
+              earlierDate(aggregatedDeadline, childEffective.deadline);
           aggregatedImpact =
-              _stronger(aggregatedImpact, childEffective.impact);
+              strongerImpact(aggregatedImpact, childEffective.impact);
         }
         deadline ??= aggregatedDeadline;
         impact ??= aggregatedImpact;
@@ -242,14 +243,4 @@ Map<String, List<String>> _displayParentsByChild(
   return out;
 }
 
-DateTime? _earliest(DateTime? a, DateTime? b) {
-  if (a == null) return b;
-  if (b == null) return a;
-  return a.isBefore(b) ? a : b;
-}
 
-Impact? _stronger(Impact? a, Impact? b) {
-  if (a == null) return b;
-  if (b == null) return a;
-  return a.weight >= b.weight ? a : b;
-}

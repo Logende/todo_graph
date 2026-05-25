@@ -23,6 +23,22 @@ class FilterPreset extends Equatable {
   /// Sort order of tiles in the dashboard.
   final int? ordering;
 
+  FilterPreset copyWith({
+    String? title,
+    Filter? filter,
+    String? iconName,
+    int? ordering,
+    bool clearOrdering = false,
+  }) {
+    return FilterPreset(
+      id: id,
+      title: title ?? this.title,
+      filter: filter ?? this.filter,
+      iconName: iconName ?? this.iconName,
+      ordering: clearOrdering ? null : (ordering ?? this.ordering),
+    );
+  }
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'title': title,

@@ -18,6 +18,7 @@ import 'add_node_view.dart';
 import 'node_detail_view.dart';
 import 'quick_add_child_dialog.dart';
 
+import 'view_helpers.dart';
 /// View 2 from the spec: a flat, filtered, ordered list of tasks with
 /// checkboxes for completion.
 ///
@@ -338,10 +339,9 @@ class _TodoListViewState extends State<TodoListView> {
       filter: _filter,
       ordering: widget.controller.graph.filterPresets.length,
     );
-    final next = widget.controller.graph.copyWith(
-      filterPresets: [...widget.controller.graph.filterPresets, preset],
+    widget.controller.setFilterPresets(
+      [...widget.controller.graph.filterPresets, preset],
     );
-    widget.controller.replaceWith(next);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Saved "$title" as a dashboard tile')),
@@ -387,6 +387,8 @@ class _SaveAsTileDialogState extends State<_SaveAsTileDialog> {
         controller: _controller,
         autofocus: true,
         decoration: const InputDecoration(labelText: 'Tile title'),
+        onSubmitted: (_) =>
+            Navigator.of(context).pop(_controller.text.trim()),
       ),
       actions: [
         TextButton(
@@ -831,9 +833,9 @@ class _NodeTile extends StatelessWidget {
     }
     final inheritedDeadline = queries.inheritedDeadline(node.id);
     if (node.deadline != null) {
-      parts.add('Due ${_formatDate(node.deadline!)}');
+      parts.add('Due ${formatDate(node.deadline!)}');
     } else if (inheritedDeadline != null) {
-      parts.add('Due ${_formatDate(inheritedDeadline)} (inherited)');
+      parts.add('Due ${formatDate(inheritedDeadline)} (inherited)');
     }
     final c = node.status.completion;
     if (c is NTimesCompletion) {
@@ -844,7 +846,7 @@ class _NodeTile extends StatelessWidget {
     final a = node.status.activation;
     if (a is BoundedActive) {
       parts.add(
-        'Active ${_formatDate(a.activeFrom)} – ${_formatDate(a.activeUntil)}',
+        'Active ${formatDate(a.activeFrom)} – ${formatDate(a.activeUntil)}',
       );
     }
     return parts.isEmpty ? null : parts.join(' • ');
@@ -869,12 +871,6 @@ class _NodeTile extends StatelessWidget {
     );
   }
 
-  String _formatDate(DateTime dt) {
-    final y = dt.year.toString().padLeft(4, '0');
-    final m = dt.month.toString().padLeft(2, '0');
-    final d = dt.day.toString().padLeft(2, '0');
-    return '$y-$m-$d';
-  }
 }
 
 List<HierarchicalRow> _applyCollapsedRows(

@@ -9,6 +9,7 @@ import '../model/node_status.dart';
 import '../model/settings.dart';
 import 'node_detail_view.dart';
 
+import 'view_helpers.dart';
 /// Pan/zoom-able layered rendering of the full goal graph. Each tap on a
 /// node opens [NodeDetailView] for inspection.
 ///
@@ -356,7 +357,7 @@ class _NodeBoxState extends State<_NodeBox> {
     }
     final impact = widget.node.impact;
     if (impact != null && impact != Impact.minimal) {
-      parts.add(_impactLabel(impact));
+      parts.add(impactLabel(impact));
     }
     return parts.isEmpty ? null : parts.join(' · ');
   }
@@ -420,13 +421,6 @@ class _NodePalette {
   final Color iconColor;
 }
 
-String _impactLabel(Impact level) => switch (level) {
-      Impact.minimal => 'Minimal',
-      Impact.low => 'Low',
-      Impact.medium => 'Medium',
-      Impact.high => 'High',
-      Impact.critical => 'Critical',
-    };
 
 String _formatDeadline(DateTime deadline, DateTime now) {
   final days = deadline.difference(now).inDays;

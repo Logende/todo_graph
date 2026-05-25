@@ -6,7 +6,9 @@ import '../model/completion.dart';
 import '../model/contribution.dart';
 import '../model/impact.dart';
 import '../model/node_status.dart';
+import '../widgets/node_picker.dart';
 
+import 'view_helpers.dart';
 /// UI selectors for the activation axis.
 enum _ActivationChoice { alwaysActive, bounded }
 
@@ -121,7 +123,7 @@ class _AddNodeViewState extends State<AddNodeView> {
     return switch (_completion) {
       _CompletionChoice.none => null,
       _CompletionChoice.oneTime => const OneTimeCompletion(),
-      // _validatePositiveInt has already gated the submit on these fields
+      // validatePositiveInt has already gated the submit on these fields
       // being valid positive integers, so int.parse is safe here.
       _CompletionChoice.nTimes => NTimesCompletion(
           targetCount: int.parse(_nTimesController.text),
@@ -130,17 +132,6 @@ class _AddNodeViewState extends State<AddNodeView> {
           intervalDaysSinceLastCompletion: int.parse(_periodController.text),
         ),
     };
-  }
-
-  /// Returns null when the text is a positive integer; otherwise the
-  /// validator message. Used as a TextFormField.validator.
-  static String? _validatePositiveInt(String? raw) {
-    final trimmed = raw?.trim() ?? '';
-    if (trimmed.isEmpty) return 'Required';
-    final parsed = int.tryParse(trimmed);
-    if (parsed == null) return 'Must be a whole number';
-    if (parsed < 1) return 'Must be at least 1';
-    return null;
   }
 
   void _submit() {
@@ -193,16 +184,20 @@ class _AddNodeViewState extends State<AddNodeView> {
               maxLines: 2,
             ),
             const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              initialValue: _parentId,
-              decoration: const InputDecoration(labelText: 'Parent goal'),
-              items: [
-                for (final n in nodes)
-                  DropdownMenuItem(value: n.id, child: Text(n.title)),
-              ],
-              onChanged: (v) => setState(() {
-                if (v != null) _parentId = v;
-              }),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                'Parent: ${nodes.firstWhere((n) => n.id == _parentId, orElse: () => nodes.first).title}',
+              ),
+              trailing: const Icon(Icons.arrow_drop_down),
+              onTap: () async {
+                final picked = await showNodePicker(
+                  context: context,
+                  nodes: nodes,
+                  title: 'Pick a parent goal',
+                );
+                if (picked != null) setState(() => _parentId = picked.id);
+              },
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<Contribution>(
@@ -305,7 +300,7 @@ class _AddNodeViewState extends State<AddNodeView> {
                 controller: _nTimesController,
                 decoration: const InputDecoration(labelText: 'Target count'),
                 keyboardType: TextInputType.number,
-                validator: _validatePositiveInt,
+                validator: validatePositiveInt,
               ),
             ],
             if (_completion == _CompletionChoice.periodic) ...[
@@ -316,7 +311,7 @@ class _AddNodeViewState extends State<AddNodeView> {
                   labelText: 'Interval (days since last completion)',
                 ),
                 keyboardType: TextInputType.number,
-                validator: _validatePositiveInt,
+                validator: validatePositiveInt,
               ),
             ],
             const SizedBox(height: 24),
@@ -330,7 +325,7 @@ class _AddNodeViewState extends State<AddNodeView> {
                 for (final level in Impact.values)
                   DropdownMenuItem<Impact?>(
                     value: level,
-                    child: Text(_impactLabel(level)),
+                    child: Text(impactLabel(level)),
                   ),
               ],
               onChanged: (v) => setState(() => _impact = v),
@@ -339,7 +334,7 @@ class _AddNodeViewState extends State<AddNodeView> {
             _DatePickerRow(
               label: _deadline == null
                   ? 'No deadline'
-                  : 'Deadline: ${_formatDate(_deadline!)}',
+                  : 'Deadline: ${formatDate(_deadline!)}',
               value: _deadline,
               onPick: (d) => setState(() => _deadline = d),
               onClear: () => setState(() => _deadline = null),
@@ -354,18 +349,7 @@ class _AddNodeViewState extends State<AddNodeView> {
 
 /// Display labels for the five impact levels. Kept here (not on the enum)
 /// so the model has no UI concerns.
-String _impactLabel(Impact level) => switch (level) {
-      Impact.minimal => 'Minimal',
-      Impact.low => 'Low',
-      Impact.medium => 'Medium',
-      Impact.high => 'High',
-      Impact.critical => 'Critical',
-    };
 
-String _formatDate(DateTime dt) =>
-    '${dt.year.toString().padLeft(4, '0')}-'
-    '${dt.month.toString().padLeft(2, '0')}-'
-    '${dt.day.toString().padLeft(2, '0')}';
 
 class _DatePickerRow extends StatelessWidget {
   const _DatePickerRow({
@@ -398,7 +382,7 @@ class _DatePickerRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      title: Text(value == null ? label : '$label: ${_formatDate(value!)}'),
+      title: Text(value == null ? label : '$label: ${formatDate(value!)}'),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

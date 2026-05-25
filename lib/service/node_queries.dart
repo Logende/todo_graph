@@ -4,6 +4,7 @@ import '../model/lakshya_graph.dart';
 import '../model/node.dart';
 import '../model/node_relationship.dart';
 
+import 'compare_utils.dart';
 /// Computed views over a single [LakshyaGraph]. Built once per graph and
 /// consulted to answer "what do we know about this node, given its
 /// neighbours and ancestry?" — the queries here look beyond the node's own
@@ -32,7 +33,7 @@ class NodeQueries {
   DateTime? inheritedDeadline(String nodeId) {
     DateTime? earliest;
     _walkSelfAndAncestors(nodeId, (node) {
-      earliest = _earlier(earliest, node.deadline);
+      earliest = earlierDate(earliest, node.deadline);
     });
     return earliest;
   }
@@ -42,7 +43,7 @@ class NodeQueries {
   Impact? inheritedImpact(String nodeId) {
     Impact? strongest;
     _walkSelfAndAncestors(nodeId, (node) {
-      strongest = _stronger(strongest, node.impact);
+      strongest = strongerImpact(strongest, node.impact);
     });
     return strongest;
   }
@@ -135,14 +136,4 @@ class NodeQueries {
   }
 }
 
-DateTime? _earlier(DateTime? a, DateTime? b) {
-  if (a == null) return b;
-  if (b == null) return a;
-  return a.isBefore(b) ? a : b;
-}
 
-Impact? _stronger(Impact? a, Impact? b) {
-  if (a == null) return b;
-  if (b == null) return a;
-  return a.weight >= b.weight ? a : b;
-}

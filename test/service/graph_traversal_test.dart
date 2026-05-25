@@ -138,5 +138,21 @@ void main() {
       final t = GraphTraversal(shared);
       expect(t.descendantsOf('root'), equals({'a', 'b', 'shared'}));
     });
+
+    test('wouldFormCycle detects cycles in a 10-node linear chain', () {
+      final nodes = [
+        for (var i = 0; i < 10; i++) buildNode('n$i'),
+      ];
+      final edges = [
+        for (var i = 1; i < 10; i++)
+          buildEdge('e$i', from: 'n$i', to: 'n${i - 1}'),
+      ];
+      final chain = LakshyaGraph(nodes: nodes, edges: edges);
+      final t = GraphTraversal(chain);
+      // n0 <- n1 <- n2 <- ... <- n9. Adding n0 -> n9 would cycle.
+      expect(t.wouldFormCycle(childId: 'n0', parentId: 'n9'), isTrue);
+      // Adding n9 -> n0 is already present direction — no NEW cycle.
+      expect(t.wouldFormCycle(childId: 'n9', parentId: 'n0'), isFalse);
+    });
   });
 }

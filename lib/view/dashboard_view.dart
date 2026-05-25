@@ -5,6 +5,7 @@ import '../app/web_file_sync_coordinator.dart';
 import '../model/filter.dart';
 import '../model/node.dart';
 import '../repository/graph_repository.dart';
+import '../service/filter_evaluator.dart';
 import 'add_node_view.dart';
 import 'graph_canvas_view.dart';
 import 'settings_view.dart';
@@ -95,6 +96,8 @@ class DashboardView extends StatelessWidget {
           final presets = [...controller.graph.filterPresets]
             ..sort((a, b) => (a.ordering ?? 0).compareTo(b.ordering ?? 0));
 
+          final now = controller.clock();
+
           return Padding(
             padding: const EdgeInsets.all(16),
             child: GridView.count(
@@ -107,6 +110,7 @@ class DashboardView extends StatelessWidget {
                   _Tile(
                     title: tile.title,
                     icon: tile.icon,
+                    badge: _actionableCount(tile.filter, now),
                     onTap: () => _openList(context, tile.title, tile.filter),
                   ),
                 _Tile(
@@ -118,6 +122,10 @@ class DashboardView extends StatelessWidget {
                   _Tile(
                     title: child.title,
                     icon: Icons.folder_outlined,
+                    badge: _actionableCount(
+                      Filter(ancestorGoalIds: [child.id]),
+                      now,
+                    ),
                     onTap: () => _openList(
                       context,
                       child.title,
@@ -128,6 +136,7 @@ class DashboardView extends StatelessWidget {
                   _Tile(
                     title: preset.title,
                     icon: Icons.filter_alt_outlined,
+                    badge: _actionableCount(preset.filter, now),
                     onTap: () =>
                         _openList(context, preset.title, preset.filter),
                   ),
@@ -153,6 +162,16 @@ class DashboardView extends StatelessWidget {
     Navigator.of(context).push(MaterialPageRoute<void>(
       builder: (_) => GraphCanvasView(controller: controller),
     ));
+  }
+
+  int _actionableCount(Filter baseFilter, DateTime now) {
+    final actionable = baseFilter.copyWith(
+      onlyOngoing: true,
+      onlyLeaves: true,
+    );
+    return FilterEvaluator(graph: controller.graph, now: now)
+        .apply(actionable)
+        .length;
   }
 
   static int _columnsForWidth(double width) {
@@ -205,11 +224,13 @@ class _Tile extends StatefulWidget {
     required this.title,
     required this.icon,
     required this.onTap,
+    this.badge,
   });
 
   final String title;
   final IconData icon;
   final VoidCallback onTap;
+  final int? badge;
 
   @override
   State<_Tile> createState() => _TileState();
@@ -269,7 +290,34 @@ class _TileState extends State<_Tile> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(widget.icon, size: 32, color: scheme.primary),
+                    Row(
+                      children: [
+                        Icon(widget.icon, size: 32, color: scheme.primary),
+                        if (widget.badge != null && widget.badge! > 0) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: scheme.primary,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '${widget.badge}',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelSmall
+                                  ?.copyWith(
+                                    color: scheme.onPrimary,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                     const SizedBox(height: 12),
                     Text(
                       widget.title,
@@ -277,6 +325,8 @@ class _TileState extends State<_Tile> {
                           .textTheme
                           .titleMedium
                           ?.copyWith(fontWeight: FontWeight.w600),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),

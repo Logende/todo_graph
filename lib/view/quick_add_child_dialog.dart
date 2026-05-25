@@ -4,6 +4,7 @@ import '../model/contribution.dart';
 import '../model/impact.dart';
 import '../model/node_status.dart';
 
+import 'view_helpers.dart';
 /// Streamlined "Add child" form. Title-only by default, with a small status
 /// picker and an "Open full form" escape hatch for the rare case where the
 /// user needs to set deadline, impact, attachments, etc.
@@ -165,7 +166,7 @@ class _QuickAddChildDialogState extends State<_QuickAddChildDialog> {
                 for (final level in Impact.values)
                   DropdownMenuItem<Impact?>(
                     value: level,
-                    child: Text(_impactLabel(level)),
+                    child: Text(impactLabel(level)),
                   ),
               ],
               onChanged: (v) => setState(() => _impact = v),
@@ -177,7 +178,7 @@ class _QuickAddChildDialogState extends State<_QuickAddChildDialog> {
                   child: Text(
                     _deadline == null
                         ? 'No deadline'
-                        : 'Deadline: ${_formatDate(_deadline!)}',
+                        : 'Deadline: ${formatDate(_deadline!)}',
                   ),
                 ),
                 TextButton(
@@ -224,15 +225,4 @@ String _choiceLabel(_QuickStatusChoice choice) => switch (choice) {
       _QuickStatusChoice.background => 'Background goal',
     };
 
-String _impactLabel(Impact level) => switch (level) {
-      Impact.minimal => 'Minimal',
-      Impact.low => 'Low',
-      Impact.medium => 'Medium',
-      Impact.high => 'High',
-      Impact.critical => 'Critical',
-    };
 
-String _formatDate(DateTime dt) =>
-    '${dt.year.toString().padLeft(4, '0')}-'
-    '${dt.month.toString().padLeft(2, '0')}-'
-    '${dt.day.toString().padLeft(2, '0')}';
