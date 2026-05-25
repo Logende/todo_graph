@@ -141,7 +141,7 @@ void main() {
     test('completionKinds restricts by completion kind', () {
       final result = FilterEvaluator(graph: graph, now: now)
           .apply(const Filter(
-        completionKinds: ['periodic'],
+        completionKinds: [CompletionKindFilter.periodic],
         showTimewiseInactiveTasks: true,
       ));
       expect(result.map((n) => n.id), equals(['pushday']));
@@ -149,7 +149,7 @@ void main() {
 
     test('completionKinds=["none"] keeps background goals', () {
       final result = FilterEvaluator(graph: graph, now: now)
-          .apply(const Filter(completionKinds: ['none']));
+          .apply(const Filter(completionKinds: [CompletionKindFilter.none]));
       expect(result.map((n) => n.id).toSet(),
           equals({'root', 'health', 'work', 'llm-paper'}));
     });

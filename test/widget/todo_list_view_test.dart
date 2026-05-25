@@ -169,7 +169,7 @@ void main() {
         filter: const Filter(
           onlyOngoing: true,
           onlyLeaves: true,
-          completionKinds: ['one_time'],
+          completionKinds: [CompletionKindFilter.oneTime],
         ),
       ),
     ));

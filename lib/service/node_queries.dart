@@ -3,33 +3,34 @@ import '../model/impact.dart';
 import '../model/lakshya_graph.dart';
 import '../model/node.dart';
 import '../model/node_relationship.dart';
-
 import 'compare_utils.dart';
+import 'graph_traversal.dart';
+
 /// Computed views over a single [LakshyaGraph]. Built once per graph and
 /// consulted to answer "what do we know about this node, given its
 /// neighbours and ancestry?" — the queries here look beyond the node's own
 /// fields to its parents, descendants, and relationships.
 ///
-/// Pre-builds adjacency tables so repeated lookups are O(parents/relationships)
-/// rather than scanning the whole edge list each time.
+/// Wraps a [GraphTraversal] for adjacency lookups so the edge-scanning work
+/// is done only once even when both a traversal and queries are needed in
+/// the same build cycle.
 class NodeQueries {
-  NodeQueries(this.graph) {
-    for (final edge in graph.edges) {
-      (_parentsByChild[edge.childId] ??= <String>[]).add(edge.parentId);
-      (_childrenByParent[edge.parentId] ??= <String>[]).add(edge.childId);
-    }
+  /// Creates a NodeQueries that builds its own [GraphTraversal] internally.
+  NodeQueries(LakshyaGraph graph)
+      : this.withTraversal(graph, GraphTraversal(graph));
+
+  /// Creates a NodeQueries reusing an existing [GraphTraversal] so the
+  /// adjacency maps are shared rather than rebuilt.
+  NodeQueries.withTraversal(this.graph, this._traversal) {
     for (final node in graph.nodes) {
       _nodeById[node.id] = node;
     }
   }
 
   final LakshyaGraph graph;
-  final Map<String, List<String>> _parentsByChild = {};
-  final Map<String, List<String>> _childrenByParent = {};
+  final GraphTraversal _traversal;
   final Map<String, Node> _nodeById = {};
 
-  /// Earliest deadline among the node itself and any of its (transitive)
-  /// ancestors. `null` when no one in the chain has a deadline.
   DateTime? inheritedDeadline(String nodeId) {
     DateTime? earliest;
     _walkSelfAndAncestors(nodeId, (node) {
@@ -38,8 +39,6 @@ class NodeQueries {
     return earliest;
   }
 
-  /// Strongest impact among the node itself and any of its (transitive)
-  /// ancestors.
   Impact? inheritedImpact(String nodeId) {
     Impact? strongest;
     _walkSelfAndAncestors(nodeId, (node) {
@@ -48,9 +47,6 @@ class NodeQueries {
     return strongest;
   }
 
-  /// Ids of nodes that rank strictly above [nodeId] via an importance
-  /// relationship. Considers both `moreImportantThan` (other -> self) and
-  /// `lessImportantThan` (self -> other) since they're directional pairs.
   Set<String> rankedAboveOf(String nodeId) {
     final out = <String>{};
     for (final r in graph.relationships) {
@@ -65,8 +61,6 @@ class NodeQueries {
     return out;
   }
 
-  /// Ids of nodes that this node ranks strictly above. Mirror of
-  /// [rankedAboveOf].
   Set<String> rankedBelowOf(String nodeId) {
     final out = <String>{};
     for (final r in graph.relationships) {
@@ -81,8 +75,6 @@ class NodeQueries {
     return out;
   }
 
-  /// Ids of nodes connected to [nodeId] via an `alternativeTo` relationship
-  /// (regardless of stored direction).
   Set<String> alternativesOf(String nodeId) {
     final out = <String>{};
     for (final r in graph.relationships) {
@@ -93,25 +85,21 @@ class NodeQueries {
     return out;
   }
 
-  /// Ids of direct parents of [nodeId].
   List<String> directParentsOf(String nodeId) =>
-      List.unmodifiable(_parentsByChild[nodeId] ?? const []);
+      _traversal
+          .outgoingEdgesFrom(nodeId)
+          .map((e) => e.parentId)
+          .toList(growable: false);
 
-  /// Ids of direct children of [nodeId].
   List<String> directChildrenOf(String nodeId) =>
-      List.unmodifiable(_childrenByParent[nodeId] ?? const []);
+      _traversal
+          .incomingEdgesTo(nodeId)
+          .map((e) => e.childId)
+          .toList(growable: false);
 
-  /// Ids of direct children that contribute to [nodeId] as mandatory AND are
-  /// still ongoing at [now]. A non-empty result means [nodeId] should not be
-  /// considered completable yet — its prerequisites aren't done.
-  ///
-  /// Background-goal children (no completion concept) are skipped: they
-  /// never close, so blocking on them would mean a parent could never be
-  /// ticked off.
   Set<String> openMandatoryChildrenOf(String nodeId, DateTime now) {
     final out = <String>{};
-    for (final edge in graph.edges) {
-      if (edge.parentId != nodeId) continue;
+    for (final edge in _traversal.incomingEdgesTo(nodeId)) {
       if (edge.contribution != Contribution.mandatory) continue;
       final child = _nodeById[edge.childId];
       if (child == null) continue;
@@ -130,10 +118,9 @@ class NodeQueries {
       final node = _nodeById[current];
       if (node == null) continue;
       visit(node);
-      final parents = _parentsByChild[current];
-      if (parents != null) queue.addAll(parents);
+      for (final edge in _traversal.outgoingEdgesFrom(current)) {
+        queue.add(edge.parentId);
+      }
     }
   }
 }
-
-

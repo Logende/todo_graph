@@ -461,8 +461,7 @@ class _FilterDrawer extends StatelessWidget {
   final ValueChanged<Filter> onChanged;
   final Future<void> Function() onSaveAsTile;
 
-  static const _completionKinds = ['none', 'one_time', 'n_times', 'periodic'];
-  static const _activationKinds = ['always_active', 'bounded'];
+  // Chip options are driven by the enum values — no magic strings.
 
   @override
   Widget build(BuildContext context) {
@@ -558,20 +557,22 @@ class _FilterDrawer extends StatelessWidget {
                     ),
                   ),
                   const Divider(),
-                  _ChipMultiSelect(
+                  _EnumChipMultiSelect<CompletionKindFilter>(
                     label: 'Completion kinds',
-                    options: _completionKinds,
+                    values: CompletionKindFilter.values,
                     selected: filter.completionKinds,
+                    labelOf: (v) => v.displayLabel,
                     onChanged: (next) =>
-                        onChanged(_copyFilter(completionKinds: next)),
+                        onChanged(filter.copyWith(completionKinds: next)),
                   ),
                   const Divider(),
-                  _ChipMultiSelect(
+                  _EnumChipMultiSelect<ActivationKindFilter>(
                     label: 'Activation kinds',
-                    options: _activationKinds,
+                    values: ActivationKindFilter.values,
                     selected: filter.activationKinds,
+                    labelOf: (v) => v.displayLabel,
                     onChanged: (next) =>
-                        onChanged(_copyFilter(activationKinds: next)),
+                        onChanged(filter.copyWith(activationKinds: next)),
                   ),
                   const Divider(),
                   Padding(
@@ -612,15 +613,13 @@ class _FilterDrawer extends StatelessWidget {
     bool? onlyOngoing,
     bool? onlyLeaves,
     FilterContribution? contribution,
-    List<String>? completionKinds,
-    List<String>? activationKinds,
     String? freeText,
   }) {
     return Filter(
       ancestorGoalIds: filter.ancestorGoalIds,
       contribution: contribution ?? filter.contribution,
-      completionKinds: completionKinds ?? filter.completionKinds,
-      activationKinds: activationKinds ?? filter.activationKinds,
+      completionKinds: filter.completionKinds,
+      activationKinds: filter.activationKinds,
       showTimewiseInactiveTasks:
           showTimewiseInactiveTasks ?? filter.showTimewiseInactiveTasks,
       showCompletedTasks: showCompletedTasks ?? filter.showCompletedTasks,
@@ -661,18 +660,20 @@ class _FilterDrawer extends StatelessWidget {
   }
 }
 
-class _ChipMultiSelect extends StatelessWidget {
-  const _ChipMultiSelect({
+class _EnumChipMultiSelect<T> extends StatelessWidget {
+  const _EnumChipMultiSelect({
     required this.label,
-    required this.options,
+    required this.values,
     required this.selected,
+    required this.labelOf,
     required this.onChanged,
   });
 
   final String label;
-  final List<String> options;
-  final List<String> selected;
-  final ValueChanged<List<String>> onChanged;
+  final List<T> values;
+  final List<T> selected;
+  final String Function(T) labelOf;
+  final ValueChanged<List<T>> onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -686,16 +687,16 @@ class _ChipMultiSelect extends StatelessWidget {
           Wrap(
             spacing: 6,
             children: [
-              for (final option in options)
+              for (final value in values)
                 FilterChip(
-                  label: Text(option),
-                  selected: selected.contains(option),
+                  label: Text(labelOf(value)),
+                  selected: selected.contains(value),
                   onSelected: (isSelected) {
                     final next = [...selected];
                     if (isSelected) {
-                      if (!next.contains(option)) next.add(option);
+                      if (!next.contains(value)) next.add(value);
                     } else {
-                      next.remove(option);
+                      next.remove(value);
                     }
                     onChanged(next);
                   },

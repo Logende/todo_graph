@@ -339,10 +339,15 @@ class GraphController extends ChangeNotifier {
   void _updateAndPersist(LakshyaGraph next) {
     _graph = next;
     notifyListeners();
-    // Don't await: keep the UI responsive. We do want to know about errors,
-    // so catch and broadcast them via [saveErrors] instead of dropping them.
-    unawaited(save(next).catchError((Object error, StackTrace _) {
+    unawaited(_trySave(next));
+  }
+
+  Future<void> _trySave(LakshyaGraph graphToSave) async {
+    try {
+      await save(graphToSave);
+    } catch (error, stackTrace) {
+      debugPrint('Lakshya: save failed — $error\n$stackTrace');
       _saveErrors.add(error);
-    }));
+    }
   }
 }

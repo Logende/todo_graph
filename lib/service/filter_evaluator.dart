@@ -36,13 +36,17 @@ class FilterEvaluator {
     }
 
     if (filter.activationKinds.isNotEmpty) {
-      final allowed = filter.activationKinds.toSet();
+      final allowed = filter.activationKinds
+          .map((k) => k.jsonValue)
+          .toSet();
       candidates =
           candidates.where((n) => allowed.contains(n.status.activation.kind));
     }
 
     if (filter.completionKinds.isNotEmpty) {
-      final allowed = filter.completionKinds.toSet();
+      final allowed = filter.completionKinds
+          .map((k) => k.jsonValue)
+          .toSet();
       candidates = candidates.where((n) {
         final c = n.status.completion;
         final key = c == null ? 'none' : c.kind;

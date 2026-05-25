@@ -76,8 +76,8 @@ void main() {
             filter: Filter(
               ancestorGoalIds: ['n-1'],
               contribution: FilterContribution.mandatory,
-              completionKinds: ['periodic', 'one_time'],
-              activationKinds: ['always_active'],
+              completionKinds: [CompletionKindFilter.periodic, CompletionKindFilter.oneTime],
+              activationKinds: [ActivationKindFilter.alwaysActive],
               onlyOngoing: true,
               onlyLeaves: true,
               freeText: 'urgent',

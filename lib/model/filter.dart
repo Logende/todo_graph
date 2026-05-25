@@ -2,6 +2,45 @@ import 'package:equatable/equatable.dart';
 
 import 'contribution.dart';
 
+/// Which completion kind to include in a filter. The [none] value matches
+/// background goals that have no completion concept at all.
+enum CompletionKindFilter {
+  none('none', 'Background goal'),
+  oneTime('one_time', 'One-time'),
+  nTimes('n_times', 'N-times'),
+  periodic('periodic', 'Periodic');
+
+  const CompletionKindFilter(this.jsonValue, this.displayLabel);
+  final String jsonValue;
+  final String displayLabel;
+
+  static CompletionKindFilter fromJsonValue(String raw) {
+    return CompletionKindFilter.values.firstWhere(
+      (v) => v.jsonValue == raw,
+      orElse: () =>
+          throw FormatException('Unknown CompletionKindFilter: "$raw"'),
+    );
+  }
+}
+
+/// Which activation kind to include in a filter.
+enum ActivationKindFilter {
+  alwaysActive('always_active', 'Always active'),
+  bounded('bounded', 'Bounded window');
+
+  const ActivationKindFilter(this.jsonValue, this.displayLabel);
+  final String jsonValue;
+  final String displayLabel;
+
+  static ActivationKindFilter fromJsonValue(String raw) {
+    return ActivationKindFilter.values.firstWhere(
+      (v) => v.jsonValue == raw,
+      orElse: () =>
+          throw FormatException('Unknown ActivationKindFilter: "$raw"'),
+    );
+  }
+}
+
 /// Composable filter spec used by the graph view, the todo list view, and
 /// dashboard tiles.
 ///
@@ -19,45 +58,29 @@ class Filter extends Equatable {
     this.freeText,
   });
 
-  /// Keep only nodes that are descendants of at least one of these goals.
-  /// Empty means "no ancestor restriction".
   final List<String> ancestorGoalIds;
 
-  /// Restrict to incoming edges of this contribution kind when computing
-  /// descendants. [FilterContribution.any] keeps both mandatory and helpful.
   final FilterContribution contribution;
 
-  /// Restrict to nodes whose completion aspect's `kind` is one of these.
-  /// The special value `"none"` matches background goals (no completion).
+  /// Restrict to nodes whose completion aspect matches one of these.
   /// Empty list means "any completion kind".
-  final List<String> completionKinds;
+  final List<CompletionKindFilter> completionKinds;
 
-  /// Restrict to nodes whose activation window kind is one of these
-  /// (`"always_active"`, `"bounded"`). Empty list means "any activation".
-  final List<String> activationKinds;
+  /// Restrict to nodes whose activation window matches one of these.
+  /// Empty list means "any activation".
+  final List<ActivationKindFilter> activationKinds;
 
-  /// Include tasks that are currently hidden only because their time window
-  /// has not started yet or a periodic cool-down has not elapsed.
   final bool showTimewiseInactiveTasks;
-
-  /// Include tasks that are already fully completed, such as one-time tasks
-  /// with a completion timestamp or N-times tasks that reached their target.
   final bool showCompletedTasks;
-
-  /// Keep only currently-actionable nodes.
   final bool onlyOngoing;
-
-  /// Keep only nodes that are leaves within the filtered subgraph.
   final bool onlyLeaves;
-
-  /// Case-insensitive substring match against node title and description.
   final String? freeText;
 
   Filter copyWith({
     List<String>? ancestorGoalIds,
     FilterContribution? contribution,
-    List<String>? completionKinds,
-    List<String>? activationKinds,
+    List<CompletionKindFilter>? completionKinds,
+    List<ActivationKindFilter>? activationKinds,
     bool? showTimewiseInactiveTasks,
     bool? showCompletedTasks,
     bool? onlyOngoing,
@@ -83,8 +106,12 @@ class Filter extends Equatable {
         if (ancestorGoalIds.isNotEmpty) 'ancestorGoalIds': ancestorGoalIds,
         if (contribution != FilterContribution.any)
           'contribution': contribution.toJsonValue(),
-        if (completionKinds.isNotEmpty) 'completionKinds': completionKinds,
-        if (activationKinds.isNotEmpty) 'activationKinds': activationKinds,
+        if (completionKinds.isNotEmpty)
+          'completionKinds':
+              completionKinds.map((k) => k.jsonValue).toList(),
+        if (activationKinds.isNotEmpty)
+          'activationKinds':
+              activationKinds.map((k) => k.jsonValue).toList(),
         if (showTimewiseInactiveTasks)
           'showTimewiseInactiveTasks': showTimewiseInactiveTasks,
         if (!showCompletedTasks) 'showCompletedTasks': showCompletedTasks,
@@ -103,8 +130,14 @@ class Filter extends Equatable {
       contribution: contribRaw == null
           ? FilterContribution.any
           : FilterContribution.fromJsonValue(contribRaw),
-      completionKinds: completionRaw ?? const [],
-      activationKinds: activationRaw ?? const [],
+      completionKinds: completionRaw
+              ?.map(CompletionKindFilter.fromJsonValue)
+              .toList() ??
+          const [],
+      activationKinds: activationRaw
+              ?.map(ActivationKindFilter.fromJsonValue)
+              .toList() ??
+          const [],
       showTimewiseInactiveTasks:
           (json['showTimewiseInactiveTasks'] as bool?) ?? false,
       showCompletedTasks: (json['showCompletedTasks'] as bool?) ?? true,
