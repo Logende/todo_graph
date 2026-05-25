@@ -20,16 +20,16 @@ class ICloudGraphRepository implements GraphRepository {
   ICloudGraphRepository._({
     required this.validator,
     required this.migrator,
-    required this._database,
+    required this.database,
   });
 
   final SchemaValidator validator;
   final GraphDocumentMigrator migrator;
-  final JSObject _database;
+  final JSObject database;
 
   @override
   Future<LakshyaGraph?> load() async {
-    final response = await _database
+    final response = await database
         .callMethod<JSPromise<JSAny?>>('fetchRecords'.toJS, _recordName.toJS)
         .toDart;
     final result = response as JSObject;
@@ -55,7 +55,7 @@ class ICloudGraphRepository implements GraphRepository {
 
   @override
   Future<void> save(LakshyaGraph graph) async {
-    final response = await _database
+    final response = await database
         .callMethod<JSPromise<JSAny?>>(
           'saveRecords'.toJS,
           _buildRecord(json.encode(graph.toJson())),
@@ -112,14 +112,13 @@ Future<ICloudGraphRepository> connectICloudGraphRepository(
   return ICloudGraphRepository._(
     validator: validator ?? await _loadSchemaValidator(),
     migrator: migrator,
-    _database: database,
+    database: database,
   );
 }
 
 Future<SchemaValidator> _loadSchemaValidator() async {
   final schemaText =
-      await web.window.fetch('schema/lakshya.schema.json'.toJS).toDart
-          as web.Response;
+      await web.window.fetch('schema/lakshya.schema.json'.toJS).toDart;
   final body = (await schemaText.text().toDart).toDart;
   return SchemaValidator.fromString(body);
 }
@@ -198,7 +197,7 @@ void _ensureAuthHost({
 
 bool _boolProperty(JSObject object, String property) {
   final value = object.getProperty<JSAny?>(property.toJS);
-  return value != null && value.toDartBool == true;
+  return value?.dartify() == true;
 }
 
 List<JSObject> _arrayProperty(JSObject object, String property) {

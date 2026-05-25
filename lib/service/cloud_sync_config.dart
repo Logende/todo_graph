@@ -6,9 +6,6 @@ class CloudSyncConfig {
     this.iCloudContainerId,
     this.iCloudApiToken,
     this.iCloudEnvironment = 'development',
-    this.dropboxAppKey,
-    this.oneDriveAppId,
-    this.oneDriveRedirectUri,
   });
 
   factory CloudSyncConfig.fromEnvironment() {
@@ -18,9 +15,6 @@ class CloudSyncConfig {
       iCloudApiToken: _env('LAKSHYA_ICLOUD_API_TOKEN'),
       iCloudEnvironment:
           _env('LAKSHYA_ICLOUD_ENVIRONMENT') ?? 'development',
-      dropboxAppKey: _env('LAKSHYA_DROPBOX_APP_KEY'),
-      oneDriveAppId: _env('LAKSHYA_ONEDRIVE_APP_ID'),
-      oneDriveRedirectUri: _env('LAKSHYA_ONEDRIVE_REDIRECT_URI'),
     );
   }
 
@@ -28,15 +22,9 @@ class CloudSyncConfig {
   final String? iCloudContainerId;
   final String? iCloudApiToken;
   final String iCloudEnvironment;
-  final String? dropboxAppKey;
-  final String? oneDriveAppId;
-  final String? oneDriveRedirectUri;
 
   bool get hasICloudConfig =>
       _hasValue(iCloudContainerId) && _hasValue(iCloudApiToken);
-  bool get hasDropboxConfig => _hasValue(dropboxAppKey);
-  bool get hasOneDriveConfig =>
-      _hasValue(oneDriveAppId) && _hasValue(oneDriveRedirectUri);
 
   static String? _env(String name) {
     const missing = '';

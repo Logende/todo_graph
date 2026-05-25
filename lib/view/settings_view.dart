@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../app/cloud_sync_coordinator.dart';
 import '../app/graph_controller.dart';
 import '../app/web_file_sync_coordinator.dart';
 import '../model/settings.dart';
@@ -36,6 +37,7 @@ class SettingsView extends StatefulWidget {
     this.webFileSync,
     this.fallbackRepository,
     this.cloudSyncRegistry,
+    this.cloudSyncCoordinator,
   }) : _injectedValidator = validator;
 
   final GraphController controller;
@@ -55,6 +57,9 @@ class SettingsView extends StatefulWidget {
 
   /// Declarative registry of API-based cloud providers.
   final CloudSyncRegistry? cloudSyncRegistry;
+
+  /// Runtime coordinator for API-based cloud sync.
+  final CloudSyncCoordinator? cloudSyncCoordinator;
 
   @override
   State<SettingsView> createState() => _SettingsViewState();
@@ -282,8 +287,6 @@ class _SettingsViewState extends State<SettingsView> {
   ) async {
     final title = switch (descriptor.id) {
       CloudSyncProviderId.iCloud => 'Apple iCloud',
-      CloudSyncProviderId.dropbox => 'Dropbox',
-      CloudSyncProviderId.oneDrive => 'Microsoft OneDrive',
     };
     await showDialog<void>(
       context: context,
@@ -361,6 +364,9 @@ class _SettingsViewState extends State<SettingsView> {
               if (widget.cloudSyncRegistry != null) ...[
                 _CloudProviderSection(
                   registry: widget.cloudSyncRegistry!,
+                  coordinator: widget.cloudSyncCoordinator,
+                  onMessage: _showSnack,
+                  onError: _showErrorDialog,
                   onInfo: _showCloudProviderInfo,
                 ),
                 const Divider(),
@@ -594,51 +600,103 @@ class _WebFileSyncSection extends StatelessWidget {
 class _CloudProviderSection extends StatelessWidget {
   const _CloudProviderSection({
     required this.registry,
+    required this.coordinator,
+    required this.onMessage,
+    required this.onError,
     required this.onInfo,
   });
 
   final CloudSyncRegistry registry;
+  final CloudSyncCoordinator? coordinator;
+  final ValueChanged<String> onMessage;
+  final Future<void> Function(String title, String body) onError;
   final ValueChanged<CloudSyncProviderDescriptor> onInfo;
+
+  Future<void> _connectICloud() async {
+    final sync = coordinator;
+    if (sync == null) {
+      await onError(
+        'Cloud sync unavailable',
+        'No cloud sync coordinator is configured for this app run.',
+      );
+      return;
+    }
+    try {
+      await sync.startICloudSync();
+      onMessage(
+        'Now syncing directly with Apple iCloud. The file-based sync options '
+        'remain available separately.',
+      );
+    } catch (e) {
+      await onError('Could not start iCloud sync', e.toString());
+    }
+  }
+
+  Future<void> _disconnectICloud() async {
+    final sync = coordinator;
+    if (sync == null) return;
+    await sync.stopSync();
+    onMessage('Stopped iCloud sync — saves now go back to the default storage.');
+  }
 
   @override
   Widget build(BuildContext context) {
     final descriptors = registry.describeAll();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const ListTile(
-          leading: Icon(Icons.cloud_queue_outlined),
-          title: Text('Cloud provider sync'),
-          subtitle: Text(
-            'Experimental API-based providers. Each service needs its own '
-            'developer app registration and credentials.',
-          ),
-        ),
-        for (final descriptor in descriptors)
-          ListTile(
-            leading: Icon(
-              switch (descriptor.status) {
-                CloudSyncProviderStatus.readyForImplementation =>
-                  Icons.check_circle_outline,
-                CloudSyncProviderStatus.missingConfiguration =>
-                  Icons.vpn_key_outlined,
-                CloudSyncProviderStatus.unsupportedPlatform =>
-                  Icons.block_outlined,
-              },
-            ),
-            title: Text(descriptor.title),
+    final sync = coordinator;
+    return ListenableBuilder(
+      listenable: sync,
+      builder: (context, _) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const ListTile(
+            leading: Icon(Icons.cloud_queue_outlined),
+            title: Text('Cloud provider sync'),
             subtitle: Text(
-              '${descriptor.subtitle}\n${descriptor.statusMessage}',
+              'Experimental API-based iCloud sync. Requires a CloudKit '
+              'container and web API token.',
             ),
-            isThreeLine: true,
-            trailing: TextButton(
-              onPressed: () => onInfo(descriptor),
-              child: Text(
-                descriptor.canStartIntegration ? 'Details' : 'Setup',
+          ),
+          for (final descriptor in descriptors)
+            ListTile(
+              leading: Icon(
+                switch (descriptor.status) {
+                  CloudSyncProviderStatus.readyForImplementation =>
+                    (sync?.isICloudActive ?? false)
+                        ? Icons.cloud_done_outlined
+                        : Icons.check_circle_outline,
+                  CloudSyncProviderStatus.missingConfiguration =>
+                    Icons.vpn_key_outlined,
+                  CloudSyncProviderStatus.unsupportedPlatform =>
+                    Icons.block_outlined,
+                },
+              ),
+              title: Text(descriptor.title),
+              subtitle: Text(
+                '${descriptor.subtitle}\n'
+                '${descriptor.statusMessage}'
+                '${sync?.isICloudActive == true ? '\nCurrently active.' : ''}',
+              ),
+              isThreeLine: true,
+              trailing: Wrap(
+                spacing: 8,
+                children: [
+                  if (descriptor.canStartIntegration && sync != null)
+                    TextButton(
+                      onPressed:
+                          sync.isICloudActive ? _disconnectICloud : _connectICloud,
+                      child: Text(sync.isICloudActive ? 'Stop' : 'Connect'),
+                    ),
+                  TextButton(
+                    onPressed: () => onInfo(descriptor),
+                    child: Text(
+                      descriptor.canStartIntegration ? 'Details' : 'Setup',
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }

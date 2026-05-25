@@ -7,6 +7,7 @@ import '../service/cloud_sync_registry.dart';
 import '../theme/lakshya_theme.dart';
 import '../theme/layout.dart';
 import '../view/dashboard_view.dart';
+import 'cloud_sync_coordinator.dart';
 import 'graph_controller.dart';
 import 'web_file_sync_coordinator.dart';
 
@@ -23,6 +24,7 @@ class LakshyaApp extends StatefulWidget {
     this.webFileSync,
     this.fallbackRepository,
     this.cloudSyncRegistry,
+    this.cloudSyncCoordinator,
     this.recoveryNotice,
   });
 
@@ -30,6 +32,7 @@ class LakshyaApp extends StatefulWidget {
   final WebFileSyncCoordinator? webFileSync;
   final GraphRepository? fallbackRepository;
   final CloudSyncRegistry? cloudSyncRegistry;
+  final CloudSyncCoordinator? cloudSyncCoordinator;
 
   /// Optional notice surfaced once at startup — used when main.dart had to
   /// recover from a corrupted save file.
@@ -96,6 +99,7 @@ class _LakshyaAppState extends State<LakshyaApp> {
         webFileSync: widget.webFileSync,
         fallbackRepository: widget.fallbackRepository,
         cloudSyncRegistry: widget.cloudSyncRegistry,
+        cloudSyncCoordinator: widget.cloudSyncCoordinator,
       ),
     );
   }

@@ -5,12 +5,7 @@ class CloudSyncRegistry {
   CloudSyncRegistry({
     required this.config,
     List<CloudSyncProvider>? providers,
-  }) : providers = providers ??
-            const [
-              ICloudCloudSyncProvider(),
-              DropboxCloudSyncProvider(),
-              OneDriveCloudSyncProvider(),
-            ];
+  }) : providers = providers ?? const [ICloudCloudSyncProvider()];
 
   factory CloudSyncRegistry.fromEnvironment() {
     return CloudSyncRegistry(config: CloudSyncConfig.fromEnvironment());

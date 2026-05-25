@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app/graph_controller.dart';
 import 'app/lakshya_app.dart';
+import 'app/cloud_sync_coordinator.dart';
 import 'app/web_file_sync_coordinator.dart';
 import 'model/lakshya_graph.dart';
 import 'repository/graph_repository.dart';
@@ -55,12 +56,18 @@ Future<void> main() async {
     validator: validator,
     initialFileName: restoredFileName,
   );
+  final cloudSyncCoordinator = CloudSyncCoordinator(
+    controller: controller,
+    fallbackRepository: fallback,
+    config: cloudSyncRegistry.config,
+  );
 
   runApp(LakshyaApp(
     controller: controller,
     webFileSync: coordinator,
     fallbackRepository: fallback,
     cloudSyncRegistry: cloudSyncRegistry,
+    cloudSyncCoordinator: cloudSyncCoordinator,
     recoveryNotice: bootstrap.recoveryNotice,
   ));
 }

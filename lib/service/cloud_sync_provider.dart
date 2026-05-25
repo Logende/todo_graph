@@ -1,6 +1,6 @@
 import 'cloud_sync_config.dart';
 
-enum CloudSyncProviderId { iCloud, dropbox, oneDrive }
+enum CloudSyncProviderId { iCloud }
 
 enum CloudSyncProviderStatus {
   readyForImplementation,
@@ -73,88 +73,6 @@ class ICloudCloudSyncProvider extends CloudSyncProvider {
       setupHint:
           'Next implementation step: sign in with CloudKit JS and store the '
           'graph in the user’s private database.',
-    );
-  }
-}
-
-class DropboxCloudSyncProvider extends CloudSyncProvider {
-  const DropboxCloudSyncProvider();
-
-  @override
-  CloudSyncProviderDescriptor describe(CloudSyncConfig config) {
-    if (!config.isWeb) {
-      return const CloudSyncProviderDescriptor(
-        id: CloudSyncProviderId.dropbox,
-        title: 'Dropbox',
-        subtitle: 'Dropbox OAuth + file API integration.',
-        status: CloudSyncProviderStatus.unsupportedPlatform,
-        statusMessage: 'This provider is planned for the web build.',
-        setupHint: 'Provide LAKSHYA_DROPBOX_APP_KEY in the web build.',
-      );
-    }
-    if (!config.hasDropboxConfig) {
-      return const CloudSyncProviderDescriptor(
-        id: CloudSyncProviderId.dropbox,
-        title: 'Dropbox',
-        subtitle: 'Dropbox OAuth + file API integration.',
-        status: CloudSyncProviderStatus.missingConfiguration,
-        statusMessage: 'Missing Dropbox app key.',
-        setupHint:
-            'Create a Dropbox app and set LAKSHYA_DROPBOX_APP_KEY for the '
-            'web build.',
-      );
-    }
-    return const CloudSyncProviderDescriptor(
-      id: CloudSyncProviderId.dropbox,
-      title: 'Dropbox',
-      subtitle: 'Dropbox OAuth + file API integration.',
-      status: CloudSyncProviderStatus.readyForImplementation,
-      statusMessage: 'Dropbox app key is configured.',
-      setupHint:
-          'Next implementation step: browser OAuth and upload/download of a '
-          'single graph document via the Dropbox API.',
-    );
-  }
-}
-
-class OneDriveCloudSyncProvider extends CloudSyncProvider {
-  const OneDriveCloudSyncProvider();
-
-  @override
-  CloudSyncProviderDescriptor describe(CloudSyncConfig config) {
-    if (!config.isWeb) {
-      return const CloudSyncProviderDescriptor(
-        id: CloudSyncProviderId.oneDrive,
-        title: 'Microsoft OneDrive',
-        subtitle: 'OneDrive picker + Microsoft Graph integration.',
-        status: CloudSyncProviderStatus.unsupportedPlatform,
-        statusMessage: 'This provider is planned for the web build.',
-        setupHint:
-            'Provide LAKSHYA_ONEDRIVE_APP_ID and '
-            'LAKSHYA_ONEDRIVE_REDIRECT_URI in the web build.',
-      );
-    }
-    if (!config.hasOneDriveConfig) {
-      return const CloudSyncProviderDescriptor(
-        id: CloudSyncProviderId.oneDrive,
-        title: 'Microsoft OneDrive',
-        subtitle: 'OneDrive picker + Microsoft Graph integration.',
-        status: CloudSyncProviderStatus.missingConfiguration,
-        statusMessage: 'Missing OneDrive app ID or redirect URI.',
-        setupHint:
-            'Register an Azure app and set LAKSHYA_ONEDRIVE_APP_ID plus '
-            'LAKSHYA_ONEDRIVE_REDIRECT_URI.',
-      );
-    }
-    return const CloudSyncProviderDescriptor(
-      id: CloudSyncProviderId.oneDrive,
-      title: 'Microsoft OneDrive',
-      subtitle: 'OneDrive picker + Microsoft Graph integration.',
-      status: CloudSyncProviderStatus.readyForImplementation,
-      statusMessage: 'OneDrive app registration is configured.',
-      setupHint:
-          'Next implementation step: authenticate with Microsoft and bind a '
-          'single graph file for repeated load/save.',
     );
   }
 }

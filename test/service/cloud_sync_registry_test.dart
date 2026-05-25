@@ -4,18 +4,14 @@ import 'package:lakshya/service/cloud_sync_provider.dart';
 import 'package:lakshya/service/cloud_sync_registry.dart';
 
 void main() {
-  test('describes all three cloud providers', () {
+  test('describes the iCloud provider', () {
     final registry = CloudSyncRegistry(
       config: const CloudSyncConfig(isWeb: true),
     );
 
     final descriptors = registry.describeAll();
 
-    expect(descriptors.map((d) => d.id), [
-      CloudSyncProviderId.iCloud,
-      CloudSyncProviderId.dropbox,
-      CloudSyncProviderId.oneDrive,
-    ]);
+    expect(descriptors.map((d) => d.id), [CloudSyncProviderId.iCloud]);
   });
 
   test('iCloud becomes ready when CloudKit config is present', () {
@@ -36,23 +32,16 @@ void main() {
     );
   });
 
-  test('Dropbox and OneDrive report missing config by default', () {
+  test('iCloud reports missing config by default', () {
     final registry = CloudSyncRegistry(
       config: const CloudSyncConfig(isWeb: true),
-      providers: const [
-        DropboxCloudSyncProvider(),
-        OneDriveCloudSyncProvider(),
-      ],
+      providers: const [ICloudCloudSyncProvider()],
     );
 
-    final descriptors = registry.describeAll();
+    final descriptor = registry.describeAll().single;
 
     expect(
-      descriptors[0].status,
-      CloudSyncProviderStatus.missingConfiguration,
-    );
-    expect(
-      descriptors[1].status,
+      descriptor.status,
       CloudSyncProviderStatus.missingConfiguration,
     );
   });

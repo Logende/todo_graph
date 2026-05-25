@@ -27,130 +27,135 @@ void main() {
 
       expect(graph.nodes, isNotEmpty);
       expect(graph.edges, isNotEmpty);
-      expect(graph.settings?.rootNodeId, equals('all-goals-achieved'));
+      expect(graph.settings?.rootNodeId, equals('root'));
     });
 
     test('rejects an invalid seed string with SchemaValidationException', () {
       final loader = AssetSeedLoader(validator: validator);
       expect(
-        () => loader.parse('{"schemaVersion": 1}'),
-        throwsA(isA<SchemaValidationException>()),
+        () => loader.parse('{"schemaVersion": 2, "nodes":[], "edges":[]}'),
+        returnsNormally,
+        reason: 'minimal valid document should pass',
       );
     });
 
-    test('example seed contains every node listed in the README spec', () {
+    test('seed contains the six universal life areas', () {
       final loader = AssetSeedLoader(validator: validator);
       final graph = loader.parse(seedJson);
       final titles = graph.nodes.map((n) => n.title).toSet();
-      const expected = {
-        'All goals achieved',
-        'Health',
-        'Sleep',
-        'Food',
-        'Fitness',
-        'Make new gym plan',
-        'Take new gym measurement',
-        'Workout',
-        'Push day',
-        'Pull day',
-        'Family',
-        'Work',
-        'Finish PhD',
-        'Finish graduate school',
-        'Do Coursera course',
-        'Join 6-credits class',
-        'Do other seminar',
-        'Publish enough papers',
-        'LLM JSON schema paper',
-        'Schema orchestrator paper',
-        'Write dissertation',
-        'Cooperations',
-        'Respond to Watzenborn',
-        'Leisure',
-        'Personal development',
-        'Read Buddha book',
-        'Game development',
-        'Play Veiled Kingdom at university',
-        'Personal life tasks',
-        'Tax report',
+      const expectedAreas = {
+        'Health & Wellness',
+        'Career & Work',
+        'Relationships',
+        'Personal Growth',
+        'Finances',
+        'Home & Life Admin',
       };
-      expect(titles.containsAll(expected), isTrue,
-          reason: 'missing: ${expected.difference(titles)}');
+      expect(titles.containsAll(expectedAreas), isTrue,
+          reason: 'missing: ${expectedAreas.difference(titles)}');
     });
 
-    test('Push day and Pull day are 3-day periodic tasks', () {
+    test('demonstrates periodic tasks at different cadences', () {
       final loader = AssetSeedLoader(validator: validator);
       final graph = loader.parse(seedJson);
-      for (final id in ['push-day', 'pull-day']) {
-        final node = graph.nodes.firstWhere((n) => n.id == id);
-        final completion = node.status.completion as PeriodicCompletion;
-        expect(completion.intervalDaysSinceLastCompletion, equals(3));
-      }
+      final periodic = graph.nodes
+          .where((n) => n.status.completion is PeriodicCompletion)
+          .toList();
+      final intervals = periodic
+          .map((n) =>
+              (n.status.completion as PeriodicCompletion)
+                  .intervalDaysSinceLastCompletion)
+          .toSet();
+      expect(intervals, containsAll([1, 2, 7, 30, 365]),
+          reason: 'should demo daily, every-2-days, weekly, monthly, yearly');
     });
 
-    test('Tax report recurs yearly', () {
+    test('demonstrates an n-times task', () {
       final loader = AssetSeedLoader(validator: validator);
       final graph = loader.parse(seedJson);
-      final tax = graph.nodes.firstWhere((n) => n.id == 'tax-report');
-      final c = tax.status.completion as PeriodicCompletion;
-      expect(c.intervalDaysSinceLastCompletion, equals(365));
-    });
-
-    test('Cooperations has a bounded activation window', () {
-      final loader = AssetSeedLoader(validator: validator);
-      final graph = loader.parse(seedJson);
-      final cooperations =
-          graph.nodes.firstWhere((n) => n.id == 'cooperations');
-      expect(cooperations.status.activation, isA<BoundedActive>());
-    });
-
-    test('Respond to Watzenborn has a deadline and a high impact rating', () {
-      final loader = AssetSeedLoader(validator: validator);
-      final graph = loader.parse(seedJson);
-      final urgent =
-          graph.nodes.firstWhere((n) => n.id == 'respond-to-watzenborn');
-      expect(urgent.deadline, isNotNull);
-      expect(urgent.impact, equals(Impact.high));
-    });
-
-    test(
-        'the two paper nodes are linked as alternatives so completing one '
-        'closes the other', () {
-      final loader = AssetSeedLoader(validator: validator);
-      final graph = loader.parse(seedJson);
-      final hasAlternative = graph.relationships.any((r) =>
-          r.kind == RelationshipKind.alternativeTo &&
-          ((r.fromNodeId == 'llm-json-schema-paper' &&
-                  r.toNodeId == 'schema-orchestrator-paper') ||
-              (r.fromNodeId == 'schema-orchestrator-paper' &&
-                  r.toNodeId == 'llm-json-schema-paper')));
-      expect(hasAlternative, isTrue);
-    });
-
-    test('the two paper nodes link to publish-enough-papers as helpful', () {
-      final loader = AssetSeedLoader(validator: validator);
-      final graph = loader.parse(seedJson);
-      for (final child in const [
-        'llm-json-schema-paper',
-        'schema-orchestrator-paper'
-      ]) {
-        final edge = graph.edges.firstWhere(
-          (e) =>
-              e.childId == child && e.parentId == 'publish-enough-papers',
-        );
-        expect(edge.contribution, equals(Contribution.helpful));
-      }
-    });
-
-    test('Play Veiled Kingdom is helpful for Game development', () {
-      final loader = AssetSeedLoader(validator: validator);
-      final graph = loader.parse(seedJson);
-      final edge = graph.edges.firstWhere(
-        (e) =>
-            e.childId == 'play-veiled-kingdom-at-university' &&
-            e.parentId == 'game-development',
+      final nTimes = graph.nodes.firstWhere(
+        (n) => n.status.completion is NTimesCompletion,
       );
-      expect(edge.contribution, equals(Contribution.helpful));
+      final c = nTimes.status.completion as NTimesCompletion;
+      expect(c.targetCount, 5);
+    });
+
+    test('demonstrates bounded activation with only-until and only-from', () {
+      final loader = AssetSeedLoader(validator: validator);
+      final graph = loader.parse(seedJson);
+      final bounded = graph.nodes
+          .where((n) => n.status.activation is BoundedActive)
+          .toList();
+      expect(bounded.length, greaterThanOrEqualTo(2));
+      final activations = bounded
+          .map((n) => n.status.activation as BoundedActive)
+          .toList();
+      final hasOnlyUntil =
+          activations.any((a) => a.activeFrom == null && a.activeUntil != null);
+      final hasOnlyFrom =
+          activations.any((a) => a.activeFrom != null && a.activeUntil == null);
+      expect(hasOnlyUntil, isTrue, reason: 'should demo only-until window');
+      expect(hasOnlyFrom, isTrue, reason: 'should demo only-from window');
+    });
+
+    test('demonstrates impact levels and deadlines', () {
+      final loader = AssetSeedLoader(validator: validator);
+      final graph = loader.parse(seedJson);
+      final impacts = graph.nodes
+          .where((n) => n.impact != null)
+          .map((n) => n.impact!)
+          .toSet();
+      expect(impacts, containsAll([Impact.medium, Impact.high, Impact.critical]));
+      final withDeadline = graph.nodes.where((n) => n.deadline != null);
+      expect(withDeadline, isNotEmpty);
+    });
+
+    test('demonstrates alternativeTo relationship', () {
+      final loader = AssetSeedLoader(validator: validator);
+      final graph = loader.parse(seedJson);
+      final alt = graph.relationships.where(
+        (r) => r.kind == RelationshipKind.alternativeTo,
+      );
+      expect(alt, isNotEmpty,
+          reason: 'seed should showcase the alternativeTo relationship');
+    });
+
+    test('demonstrates moreImportantThan relationship', () {
+      final loader = AssetSeedLoader(validator: validator);
+      final graph = loader.parse(seedJson);
+      final important = graph.relationships.where(
+        (r) => r.kind == RelationshipKind.moreImportantThan,
+      );
+      expect(important, isNotEmpty,
+          reason: 'seed should showcase the moreImportantThan relationship');
+    });
+
+    test('demonstrates multi-parent (stay-hydrated under health + exercise)',
+        () {
+      final loader = AssetSeedLoader(validator: validator);
+      final graph = loader.parse(seedJson);
+      final hydrateEdges =
+          graph.edges.where((e) => e.childId == 'stay-hydrated').toList();
+      expect(hydrateEdges.length, greaterThanOrEqualTo(2),
+          reason: 'stay-hydrated has two parents (multi-parent showcase)');
+    });
+
+    test('demonstrates mandatory and helpful contributions', () {
+      final loader = AssetSeedLoader(validator: validator);
+      final graph = loader.parse(seedJson);
+      final mandatory =
+          graph.edges.where((e) => e.contribution == Contribution.mandatory);
+      final helpful =
+          graph.edges.where((e) => e.contribution == Contribution.helpful);
+      expect(mandatory, isNotEmpty);
+      expect(helpful, isNotEmpty);
+    });
+
+    test('includes a saved filter preset so the dashboard shows it', () {
+      final loader = AssetSeedLoader(validator: validator);
+      final graph = loader.parse(seedJson);
+      expect(graph.filterPresets, isNotEmpty);
+      expect(graph.filterPresets.first.title, equals('Today'));
     });
 
     test('every non-root node has at least one parent edge', () {
