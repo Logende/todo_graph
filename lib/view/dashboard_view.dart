@@ -7,6 +7,7 @@ import '../model/node.dart';
 import '../repository/graph_repository.dart';
 import '../service/cloud_sync_registry.dart';
 import '../service/filter_evaluator.dart';
+import '../theme/layout.dart';
 import 'add_node_view.dart';
 import 'graph_canvas_view.dart';
 import 'settings_view.dart';
@@ -103,12 +104,12 @@ class DashboardView extends StatelessWidget {
           final now = controller.clock();
 
           return Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(kTileGridPadding),
             child: GridView.count(
               crossAxisCount: _columnsForWidth(MediaQuery.sizeOf(context).width),
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: 1.4,
+              mainAxisSpacing: kTileGridSpacing,
+              crossAxisSpacing: kTileGridSpacing,
+              childAspectRatio: kTileAspectRatio,
               children: [
                 for (final tile in _alwaysOnTiles)
                   _Tile(
@@ -179,8 +180,8 @@ class DashboardView extends StatelessWidget {
   }
 
   static int _columnsForWidth(double width) {
-    if (width >= 900) return 4;
-    if (width >= 600) return 3;
+    if (width >= kWideScreenBreakpoint) return 4;
+    if (width >= kMediumScreenBreakpoint) return 3;
     return 2;
   }
 
@@ -251,11 +252,11 @@ class _TileState extends State<_Tile> {
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: AnimatedScale(
-        scale: _hovered ? 1.025 : 1.0,
-        duration: const Duration(milliseconds: 160),
+        scale: _hovered ? kTileHoverScale : 1.0,
+        duration: kHoverScaleDuration,
         curve: Curves.easeOut,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
+          duration: kHoverColorDuration,
           curve: Curves.easeOut,
           decoration: BoxDecoration(
             gradient: LinearGradient(

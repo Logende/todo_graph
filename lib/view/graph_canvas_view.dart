@@ -6,6 +6,7 @@ import '../model/completion.dart';
 import '../model/impact.dart';
 import '../model/node.dart' as model;
 import '../model/node_status.dart';
+import '../theme/layout.dart';
 import '../model/settings.dart';
 import 'node_detail_view.dart';
 
@@ -64,8 +65,8 @@ class _GraphCanvasState extends State<_GraphCanvas> {
   void initState() {
     super.initState();
     _config = gv.SugiyamaConfiguration()
-      ..nodeSeparation = 52
-      ..levelSeparation = 80
+      ..nodeSeparation = kGraphNodeSeparation
+      ..levelSeparation = kGraphLevelSeparation
       ..orientation = gv.SugiyamaConfiguration.ORIENTATION_TOP_BOTTOM;
     _graph = _buildLayoutGraph();
   }
@@ -166,11 +167,11 @@ class _GraphCanvasState extends State<_GraphCanvas> {
       child: InteractiveViewer(
         transformationController: _viewport,
         constrained: false,
-        minScale: 0.3,
-        maxScale: 4,
-        boundaryMargin: const EdgeInsets.all(400),
+        minScale: kGraphMinScale,
+        maxScale: kGraphMaxScale,
+        boundaryMargin: const EdgeInsets.all(kGraphBoundaryMargin),
         child: Padding(
-          padding: const EdgeInsets.all(48),
+          padding: const EdgeInsets.all(kGraphInternalPadding),
           child: gv.GraphView(
             graph: _graph,
             algorithm: gv.SugiyamaAlgorithm(_config),
@@ -264,16 +265,16 @@ class _NodeBoxState extends State<_NodeBox> {
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: AnimatedScale(
-        scale: _hovered ? 1.04 : 1.0,
-        duration: const Duration(milliseconds: 140),
+        scale: _hovered ? kGraphNodeHoverScale : 1.0,
+        duration: kHoverScaleDuration,
         curve: Curves.easeOut,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
+          duration: kHoverColorDuration,
           curve: Curves.easeOut,
           constraints: const BoxConstraints(
-            minWidth: 160,
-            maxWidth: 240,
-            minHeight: 56,
+            minWidth: kGraphNodeMinWidth,
+            maxWidth: kGraphNodeMaxWidth,
+            minHeight: kGraphNodeMinHeight,
           ),
           decoration: BoxDecoration(
             gradient: LinearGradient(

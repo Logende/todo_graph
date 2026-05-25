@@ -19,6 +19,7 @@ import 'node_detail_view.dart';
 import 'quick_add_child_dialog.dart';
 
 import 'view_helpers.dart';
+import '../theme/layout.dart';
 /// View 2 from the spec: a flat, filtered, ordered list of tasks with
 /// checkboxes for completion.
 ///
@@ -210,7 +211,7 @@ class _TodoListViewState extends State<TodoListView> {
       ..showSnackBar(
         SnackBar(
           content: Text(message),
-          duration: const Duration(seconds: 5),
+          duration: kUndoSnackBarDuration,
           action: SnackBarAction(
             label: 'Undo',
             onPressed: () => widget.controller.setCompleted(
@@ -750,10 +751,10 @@ class _NodeTile extends StatelessWidget {
     final screenWidth = MediaQuery.sizeOf(context).width;
     // Responsive indentation: tighter on narrow screens so deeply nested
     // items still have room for their title text.
-    final indentPerLevel = screenWidth < 500 ? 10.0 : 16.0;
+    final indentPerLevel = screenWidth < kNarrowScreenBreakpoint ? kIndentPerLevelNarrow : kIndentPerLevelWide;
     // Cap effective depth so very deep hierarchies don't push the text
     // off-screen.
-    final effectiveDepth = depth.clamp(0, 8);
+    final effectiveDepth = depth.clamp(0, kMaxDisplayDepth);
     final borderColor = switch (edgeContribution) {
       Contribution.mandatory => scheme.primary,
       Contribution.helpful => scheme.outlineVariant,
@@ -766,7 +767,7 @@ class _NodeTile extends StatelessWidget {
           border: Border(
             left: BorderSide(
               color: borderColor,
-              width: edgeContribution != null ? 3 : 0,
+              width: edgeContribution != null ? kContributionBorderWidth : 0,
             ),
           ),
         ),
@@ -812,34 +813,34 @@ class _NodeTile extends StatelessWidget {
         ),
         title: Text(
           node.title,
-          maxLines: screenWidth < 500 ? 2 : null,
-          overflow: screenWidth < 500 ? TextOverflow.ellipsis : null,
+          maxLines: screenWidth < kNarrowScreenBreakpoint ? 2 : null,
+          overflow: screenWidth < kNarrowScreenBreakpoint ? TextOverflow.ellipsis : null,
         ),
         subtitle: subtitle == null
             ? null
             : Text(
                 subtitle,
-                maxLines: screenWidth < 500 ? 1 : 2,
+                maxLines: screenWidth < kNarrowScreenBreakpoint ? 1 : 2,
                 overflow: TextOverflow.ellipsis,
               ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             // Hide the status badge on narrow screens to save space.
-            if (screenWidth >= 500) _statusBadge(node.status),
+            if (screenWidth >= kNarrowScreenBreakpoint) _statusBadge(node.status),
             if (isTreeMode && currentParentId != null)
               IconButton(
                 tooltip: 'Move to another parent',
                 icon: const Icon(Icons.drive_file_move_outline),
                 visualDensity: VisualDensity.compact,
-                iconSize: screenWidth < 500 ? 18 : 24,
+                iconSize: screenWidth < kNarrowScreenBreakpoint ? kCompactIconSize : kDefaultIconSize,
                 onPressed: () => onMoveToParent(currentParentId),
               ),
             IconButton(
               tooltip: 'Add child',
               icon: const Icon(Icons.add),
               visualDensity: VisualDensity.compact,
-              iconSize: screenWidth < 500 ? 18 : 24,
+              iconSize: screenWidth < kNarrowScreenBreakpoint ? kCompactIconSize : kDefaultIconSize,
               onPressed: onQuickAddChild,
             ),
           ],

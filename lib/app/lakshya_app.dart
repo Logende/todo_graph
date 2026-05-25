@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../repository/graph_repository.dart';
 import '../service/cloud_sync_registry.dart';
 import '../theme/lakshya_theme.dart';
+import '../theme/layout.dart';
 import '../view/dashboard_view.dart';
 import 'graph_controller.dart';
 import 'web_file_sync_coordinator.dart';
@@ -53,7 +54,7 @@ class _LakshyaAppState extends State<LakshyaApp> {
         _messengerKey.currentState?.showSnackBar(
           SnackBar(
             content: Text(notice),
-            duration: const Duration(seconds: 8),
+            duration: kRecoveryNoticeDuration,
           ),
         );
       });
@@ -73,7 +74,7 @@ class _LakshyaAppState extends State<LakshyaApp> {
             .colorScheme
             .errorContainer,
         content: Text('Save failed: $error'),
-        duration: const Duration(seconds: 6),
+        duration: kSaveErrorDuration,
         action: SnackBarAction(
           label: 'Dismiss',
           onPressed: () =>
