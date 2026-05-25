@@ -1,0 +1,209 @@
+{
+  "schemaVersion": 1,
+  "settings": {
+    "rootNodeId": "all-goals-achieved",
+    "defaultDeadlineLeadTimeHours": 24,
+    "notifyOnPeriodicReopenByDefault": true,
+    "urgentWindowDays": 3
+  },
+  "relationships": [
+    { "id": "r-llm-vs-orchestrator",
+      "fromNodeId": "llm-json-schema-paper",
+      "toNodeId": "schema-orchestrator-paper",
+      "kind": "alternativeTo" }
+  ],
+  "nodes": [
+    {
+      "id": "all-goals-achieved",
+      "title": "All goals achieved",
+      "status": { "activation": { "kind": "always_active" } },
+      "createdAt": "2026-05-24T00:00:00.000Z"
+    },
+
+    { "id": "health", "title": "Health",
+      "status": { "activation": { "kind": "always_active" } },
+      "createdAt": "2026-05-24T00:00:00.000Z" },
+    { "id": "sleep", "title": "Sleep",
+      "status": { "activation": { "kind": "always_active" } },
+      "createdAt": "2026-05-24T00:00:00.000Z" },
+    { "id": "food", "title": "Food",
+      "status": { "activation": { "kind": "always_active" } },
+      "createdAt": "2026-05-24T00:00:00.000Z" },
+    { "id": "fitness", "title": "Fitness",
+      "status": { "activation": { "kind": "always_active" } },
+      "createdAt": "2026-05-24T00:00:00.000Z" },
+    { "id": "make-new-gym-plan", "title": "Make new gym plan",
+      "status": {
+        "activation": { "kind": "always_active" },
+        "completion": { "kind": "one_time" }
+      },
+      "createdAt": "2026-05-24T00:00:00.000Z" },
+    { "id": "take-new-gym-measurement", "title": "Take new gym measurement",
+      "status": {
+        "activation": { "kind": "always_active" },
+        "completion": { "kind": "periodic", "intervalDaysSinceLastCompletion": 90 }
+      },
+      "createdAt": "2026-05-24T00:00:00.000Z" },
+    { "id": "workout", "title": "Workout",
+      "status": { "activation": { "kind": "always_active" } },
+      "createdAt": "2026-05-24T00:00:00.000Z" },
+    { "id": "push-day", "title": "Push day",
+      "status": {
+        "activation": { "kind": "always_active" },
+        "completion": { "kind": "periodic", "intervalDaysSinceLastCompletion": 3 }
+      },
+      "createdAt": "2026-05-24T00:00:00.000Z" },
+    { "id": "pull-day", "title": "Pull day",
+      "status": {
+        "activation": { "kind": "always_active" },
+        "completion": { "kind": "periodic", "intervalDaysSinceLastCompletion": 3 }
+      },
+      "createdAt": "2026-05-24T00:00:00.000Z" },
+
+    { "id": "family", "title": "Family",
+      "status": { "activation": { "kind": "always_active" } },
+      "createdAt": "2026-05-24T00:00:00.000Z" },
+
+    { "id": "work", "title": "Work",
+      "description": "Eventually bound to age 75 — set a bounded window once a birth date is configured.",
+      "status": { "activation": { "kind": "always_active" } },
+      "createdAt": "2026-05-24T00:00:00.000Z" },
+    { "id": "finish-phd", "title": "Finish PhD",
+      "status": {
+        "activation": { "kind": "always_active" },
+        "completion": { "kind": "one_time" }
+      },
+      "createdAt": "2026-05-24T00:00:00.000Z" },
+    { "id": "finish-graduate-school", "title": "Finish graduate school",
+      "status": {
+        "activation": { "kind": "always_active" },
+        "completion": { "kind": "one_time" }
+      },
+      "createdAt": "2026-05-24T00:00:00.000Z" },
+    { "id": "do-coursera-course", "title": "Do Coursera course",
+      "status": {
+        "activation": { "kind": "always_active" },
+        "completion": { "kind": "one_time" }
+      },
+      "createdAt": "2026-05-24T00:00:00.000Z" },
+    { "id": "join-6-credits-class", "title": "Join 6-credits class",
+      "status": {
+        "activation": { "kind": "always_active" },
+        "completion": { "kind": "one_time" }
+      },
+      "createdAt": "2026-05-24T00:00:00.000Z" },
+    { "id": "do-other-seminar", "title": "Do other seminar",
+      "status": {
+        "activation": { "kind": "always_active" },
+        "completion": { "kind": "one_time" }
+      },
+      "createdAt": "2026-05-24T00:00:00.000Z" },
+    { "id": "publish-enough-papers", "title": "Publish enough papers",
+      "status": { "activation": { "kind": "always_active" } },
+      "createdAt": "2026-05-24T00:00:00.000Z" },
+    { "id": "llm-json-schema-paper", "title": "LLM JSON schema paper",
+      "status": {
+        "activation": { "kind": "always_active" },
+        "completion": { "kind": "one_time" }
+      },
+      "createdAt": "2026-05-24T00:00:00.000Z" },
+    { "id": "schema-orchestrator-paper", "title": "Schema orchestrator paper",
+      "status": {
+        "activation": { "kind": "always_active" },
+        "completion": { "kind": "one_time" }
+      },
+      "createdAt": "2026-05-24T00:00:00.000Z" },
+    { "id": "write-dissertation", "title": "Write dissertation",
+      "status": {
+        "activation": { "kind": "always_active" },
+        "completion": { "kind": "one_time" }
+      },
+      "createdAt": "2026-05-24T00:00:00.000Z" },
+    { "id": "cooperations", "title": "Cooperations",
+      "status": {
+        "activation": {
+          "kind": "bounded",
+          "activeFrom": "2026-05-24T00:00:00.000Z",
+          "activeUntil": "2027-11-23T00:00:00.000Z"
+        }
+      },
+      "createdAt": "2026-05-24T00:00:00.000Z" },
+    { "id": "respond-to-watzenborn", "title": "Respond to Watzenborn",
+      "description": "Urgent reply needed.",
+      "impact": "high",
+      "deadline": "2026-05-26T17:00:00.000Z",
+      "status": {
+        "activation": { "kind": "always_active" },
+        "completion": { "kind": "one_time" }
+      },
+      "createdAt": "2026-05-24T00:00:00.000Z" },
+
+    { "id": "leisure", "title": "Leisure",
+      "status": { "activation": { "kind": "always_active" } },
+      "createdAt": "2026-05-24T00:00:00.000Z" },
+    { "id": "personal-development", "title": "Personal development",
+      "status": { "activation": { "kind": "always_active" } },
+      "createdAt": "2026-05-24T00:00:00.000Z" },
+    { "id": "read-buddha-book", "title": "Read Buddha book",
+      "status": {
+        "activation": { "kind": "always_active" },
+        "completion": { "kind": "one_time" }
+      },
+      "createdAt": "2026-05-24T00:00:00.000Z" },
+    { "id": "game-development", "title": "Game development",
+      "status": { "activation": { "kind": "always_active" } },
+      "createdAt": "2026-05-24T00:00:00.000Z" },
+    { "id": "play-veiled-kingdom-at-university",
+      "title": "Play Veiled Kingdom at university",
+      "status": {
+        "activation": { "kind": "always_active" },
+        "completion": { "kind": "one_time" }
+      },
+      "createdAt": "2026-05-24T00:00:00.000Z" },
+
+    { "id": "personal-life-tasks", "title": "Personal life tasks",
+      "status": { "activation": { "kind": "always_active" } },
+      "createdAt": "2026-05-24T00:00:00.000Z" },
+    { "id": "tax-report", "title": "Tax report",
+      "status": {
+        "activation": { "kind": "always_active" },
+        "completion": { "kind": "periodic", "intervalDaysSinceLastCompletion": 365 }
+      },
+      "createdAt": "2026-05-24T00:00:00.000Z" }
+  ],
+  "edges": [
+    { "id": "e-health", "childId": "health", "parentId": "all-goals-achieved", "contribution": "mandatory" },
+    { "id": "e-sleep", "childId": "sleep", "parentId": "health", "contribution": "mandatory" },
+    { "id": "e-food", "childId": "food", "parentId": "health", "contribution": "mandatory" },
+    { "id": "e-fitness", "childId": "fitness", "parentId": "health", "contribution": "mandatory" },
+    { "id": "e-gym-plan", "childId": "make-new-gym-plan", "parentId": "fitness", "contribution": "mandatory" },
+    { "id": "e-gym-measurement", "childId": "take-new-gym-measurement", "parentId": "fitness", "contribution": "mandatory" },
+    { "id": "e-workout", "childId": "workout", "parentId": "fitness", "contribution": "mandatory" },
+    { "id": "e-push-day", "childId": "push-day", "parentId": "workout", "contribution": "mandatory" },
+    { "id": "e-pull-day", "childId": "pull-day", "parentId": "workout", "contribution": "mandatory" },
+
+    { "id": "e-family", "childId": "family", "parentId": "all-goals-achieved", "contribution": "mandatory" },
+
+    { "id": "e-work", "childId": "work", "parentId": "all-goals-achieved", "contribution": "mandatory" },
+    { "id": "e-phd", "childId": "finish-phd", "parentId": "work", "contribution": "mandatory" },
+    { "id": "e-graduate-school", "childId": "finish-graduate-school", "parentId": "finish-phd", "contribution": "mandatory" },
+    { "id": "e-coursera", "childId": "do-coursera-course", "parentId": "finish-graduate-school", "contribution": "mandatory" },
+    { "id": "e-6-credits", "childId": "join-6-credits-class", "parentId": "finish-graduate-school", "contribution": "mandatory" },
+    { "id": "e-other-seminar", "childId": "do-other-seminar", "parentId": "finish-graduate-school", "contribution": "mandatory" },
+    { "id": "e-publish", "childId": "publish-enough-papers", "parentId": "finish-phd", "contribution": "mandatory" },
+    { "id": "e-llm-paper", "childId": "llm-json-schema-paper", "parentId": "publish-enough-papers", "contribution": "helpful" },
+    { "id": "e-orchestrator-paper", "childId": "schema-orchestrator-paper", "parentId": "publish-enough-papers", "contribution": "helpful" },
+    { "id": "e-dissertation", "childId": "write-dissertation", "parentId": "finish-phd", "contribution": "mandatory" },
+    { "id": "e-cooperations", "childId": "cooperations", "parentId": "finish-phd", "contribution": "mandatory" },
+    { "id": "e-watzenborn", "childId": "respond-to-watzenborn", "parentId": "cooperations", "contribution": "mandatory" },
+
+    { "id": "e-leisure", "childId": "leisure", "parentId": "all-goals-achieved", "contribution": "mandatory" },
+    { "id": "e-personal-development", "childId": "personal-development", "parentId": "leisure", "contribution": "mandatory" },
+    { "id": "e-buddha-book", "childId": "read-buddha-book", "parentId": "personal-development", "contribution": "mandatory" },
+    { "id": "e-game-development", "childId": "game-development", "parentId": "leisure", "contribution": "mandatory" },
+    { "id": "e-veiled-kingdom", "childId": "play-veiled-kingdom-at-university", "parentId": "game-development", "contribution": "helpful" },
+
+    { "id": "e-personal-life", "childId": "personal-life-tasks", "parentId": "all-goals-achieved", "contribution": "mandatory" },
+    { "id": "e-tax-report", "childId": "tax-report", "parentId": "personal-life-tasks", "contribution": "mandatory" }
+  ]
+}
