@@ -68,12 +68,14 @@ class _GraphCanvasState extends State<_GraphCanvas> {
       ..nodeSeparation = kGraphNodeSeparation
       ..levelSeparation = kGraphLevelSeparation
       ..orientation = gv.SugiyamaConfiguration.ORIENTATION_TOP_BOTTOM;
+    _rebuildAdjacency();
     _graph = _buildLayoutGraph();
   }
 
   @override
   void didUpdateWidget(covariant _GraphCanvas oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _rebuildAdjacency();
     _graph = _buildLayoutGraph();
   }
 
@@ -87,23 +89,29 @@ class _GraphCanvasState extends State<_GraphCanvas> {
       widget.controller.graph.settings?.collapsedNodeIds.toSet() ??
       const <String>{};
 
-  /// Nodes with at least one child edge in the full graph.
-  Set<String> get _nodesWithChildren {
-    final result = <String>{};
+  late Set<String> _nodesWithChildren;
+  late Map<String, List<String>> _childrenByParent;
+
+  void _rebuildAdjacency() {
+    _nodesWithChildren = {};
+    _childrenByParent = {};
+    final allIds = widget.modelNodes.map((n) => n.id).toSet();
     for (final edge in widget.controller.graph.edges) {
-      result.add(edge.parentId);
+      if (!allIds.contains(edge.parentId)) continue;
+      if (!allIds.contains(edge.childId)) continue;
+      _nodesWithChildren.add(edge.parentId);
+      (_childrenByParent[edge.parentId] ??= <String>[]).add(edge.childId);
     }
-    return result;
   }
 
   /// Computes visible node IDs by BFS from root-level nodes, skipping
   /// the children of collapsed nodes.
   Set<String> _visibleNodeIds() {
     final allIds = widget.modelNodes.map((n) => n.id).toSet();
-    final childIds = widget.controller.graph.edges
-        .where((e) => allIds.contains(e.childId) && allIds.contains(e.parentId))
-        .map((e) => e.childId)
-        .toSet();
+    final childIds = <String>{};
+    for (final children in _childrenByParent.values) {
+      childIds.addAll(children);
+    }
     final topLevel = allIds.difference(childIds);
     final visible = <String>{};
     final queue = [...topLevel];
@@ -111,11 +119,8 @@ class _GraphCanvasState extends State<_GraphCanvas> {
       final id = queue.removeAt(0);
       if (!visible.add(id)) continue;
       if (_collapsedIds.contains(id)) continue;
-      for (final edge in widget.controller.graph.edges) {
-        if (edge.parentId == id && allIds.contains(edge.childId)) {
-          queue.add(edge.childId);
-        }
-      }
+      final children = _childrenByParent[id];
+      if (children != null) queue.addAll(children);
     }
     return visible;
   }
@@ -316,10 +321,10 @@ class _NodeBoxState extends State<_NodeBox> {
                       icon: _leadingIconFor(widget.node.status),
                       iconColor: palette.iconColor,
                     ),
-                    if (_subtitleFor() != null) ...[
+                    if (_subtitleFor() case final subtitle?) ...[
                       const SizedBox(height: 4),
                       Text(
-                        _subtitleFor()!,
+                        subtitle,
                         style: Theme.of(context)
                             .textTheme
                             .labelSmall

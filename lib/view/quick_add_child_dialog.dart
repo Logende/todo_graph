@@ -66,7 +66,7 @@ class _QuickAddChildDialog extends StatefulWidget {
   State<_QuickAddChildDialog> createState() => _QuickAddChildDialogState();
 }
 
-enum _QuickStatusChoice { oneTime, periodicThreeDays, background }
+enum _QuickStatusChoice { oneTime, daily, everyThreeDays, weekly, background }
 
 class _QuickAddChildDialogState extends State<_QuickAddChildDialog> {
   final _controller = TextEditingController();
@@ -83,8 +83,12 @@ class _QuickAddChildDialogState extends State<_QuickAddChildDialog> {
 
   NodeStatus _buildStatus() => switch (_choice) {
         _QuickStatusChoice.oneTime => NodeStatus.oneTime(),
-        _QuickStatusChoice.periodicThreeDays =>
+        _QuickStatusChoice.daily =>
+          NodeStatus.periodic(intervalDaysSinceLastCompletion: 1),
+        _QuickStatusChoice.everyThreeDays =>
           NodeStatus.periodic(intervalDaysSinceLastCompletion: 3),
+        _QuickStatusChoice.weekly =>
+          NodeStatus.periodic(intervalDaysSinceLastCompletion: 7),
         _QuickStatusChoice.background => NodeStatus.alwaysOnBackground,
       };
 
@@ -116,10 +120,11 @@ class _QuickAddChildDialogState extends State<_QuickAddChildDialog> {
       title: Text('Add child of "${widget.parentTitle}"'),
       content: SizedBox(
         width: 360,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             TextField(
               controller: _controller,
               autofocus: true,
@@ -194,6 +199,7 @@ class _QuickAddChildDialogState extends State<_QuickAddChildDialog> {
               ],
             ),
           ],
+          ),
         ),
       ),
       actions: [
@@ -221,7 +227,9 @@ class _QuickAddChildDialogState extends State<_QuickAddChildDialog> {
 
 String _choiceLabel(_QuickStatusChoice choice) => switch (choice) {
       _QuickStatusChoice.oneTime => 'One-time',
-      _QuickStatusChoice.periodicThreeDays => 'Every 3 days',
+      _QuickStatusChoice.daily => 'Daily',
+      _QuickStatusChoice.everyThreeDays => 'Every 3 days',
+      _QuickStatusChoice.weekly => 'Weekly',
       _QuickStatusChoice.background => 'Background goal',
     };
 

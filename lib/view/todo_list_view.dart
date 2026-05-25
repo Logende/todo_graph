@@ -151,6 +151,9 @@ class _TodoListViewState extends State<TodoListView> {
 
           return ReorderableListView.builder(
             buildDefaultDragHandles: false,
+            // Extra bottom padding so the FAB doesn't overlap the last
+            // row's trailing action buttons.
+            padding: const EdgeInsets.only(bottom: 80),
             itemCount: hierarchy.length,
             onReorderItem: (oldIndex, newIndex) =>
                 _handleReorder(hierarchy, oldIndex, newIndex),
@@ -536,7 +539,7 @@ class _FilterDrawer extends StatelessWidget {
                       value: filter.contribution,
                       isExpanded: true,
                       onChanged: (v) => onChanged(
-                        _copyFilter(
+                        filter.copyWith(
                           contribution: v ?? FilterContribution.any,
                         ),
                       ),
@@ -586,7 +589,7 @@ class _FilterDrawer extends StatelessWidget {
                         labelText: 'Free text',
                         prefixIcon: Icon(Icons.search),
                       ),
-                      onChanged: (v) => onChanged(_copyFilter(freeText: v)),
+                      onChanged: (v) => onChanged(filter.copyWith(freeText: v)),
                     ),
                   ),
                 ],
@@ -604,28 +607,6 @@ class _FilterDrawer extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-
-  Filter _copyFilter({
-    bool? showTimewiseInactiveTasks,
-    bool? showCompletedTasks,
-    bool? onlyOngoing,
-    bool? onlyLeaves,
-    FilterContribution? contribution,
-    String? freeText,
-  }) {
-    return Filter(
-      ancestorGoalIds: filter.ancestorGoalIds,
-      contribution: contribution ?? filter.contribution,
-      completionKinds: filter.completionKinds,
-      activationKinds: filter.activationKinds,
-      showTimewiseInactiveTasks:
-          showTimewiseInactiveTasks ?? filter.showTimewiseInactiveTasks,
-      showCompletedTasks: showCompletedTasks ?? filter.showCompletedTasks,
-      onlyOngoing: onlyOngoing ?? filter.onlyOngoing,
-      onlyLeaves: onlyLeaves ?? filter.onlyLeaves,
-      freeText: freeText ?? filter.freeText,
     );
   }
 

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../app/graph_controller.dart';
+import '../model/activation_window.dart';
 import '../model/attachment.dart';
+import '../model/completion.dart';
 import '../model/edge.dart';
 import '../model/node.dart';
 import '../model/node_relationship.dart';
@@ -173,7 +175,13 @@ class _DetailScaffold extends StatelessWidget {
           ...parentEdges.map((e) => _ParentTile(
                 edge: e,
                 parentTitle: _titleForId(e.parentId),
-                onRemove: () => controller.removeEdge(e.id),
+                onRemove: () => _confirmRemoveEdge(
+                  context,
+                  edgeId: e.id,
+                  description:
+                      'Remove parent link to "${_titleForId(e.parentId)}"?',
+                  isLastParent: parentEdges.length == 1,
+                ),
               )),
           const SizedBox(height: 24),
           _SectionHeader(title: 'Child tasks / dependents (${childEdges.length})'),
@@ -188,7 +196,12 @@ class _DetailScaffold extends StatelessWidget {
           ...childEdges.map((e) => _ChildTile(
                 edge: e,
                 childTitle: _titleForId(e.childId),
-                onRemove: () => controller.removeEdge(e.id),
+                onRemove: () => _confirmRemoveEdge(
+                  context,
+                  edgeId: e.id,
+                  description:
+                      'Remove child link to "${_titleForId(e.childId)}"?',
+                ),
               )),
           const SizedBox(height: 24),
           _SectionHeader(
@@ -285,6 +298,36 @@ class _DetailScaffold extends StatelessWidget {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Copied to clipboard')),
     );
+  }
+
+  Future<void> _confirmRemoveEdge(
+    BuildContext context, {
+    required String edgeId,
+    required String description,
+    bool isLastParent = false,
+  }) async {
+    final warning = isLastParent
+        ? '$description\n\nThis is the last parent — removing it will '
+            'make this node a top-level orphan.'
+        : description;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Remove link?'),
+        content: Text(warning),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.tonal(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) controller.removeEdge(edgeId);
   }
 
   Future<void> _openEditor(BuildContext context) async {
@@ -563,16 +606,26 @@ class _StatusSummary extends StatelessWidget {
 
   String _activationLabelFor(Node node) {
     final activation = node.status.activation;
-    return switch (activation.kind) {
-      'bounded' => 'bounded window',
-      _ => 'always active',
+    return switch (activation) {
+      AlwaysActive() => 'Always active',
+      BoundedActive(activeFrom: final from, activeUntil: final until) =>
+        'Bounded window'
+            '${from != null ? " from ${formatDate(from)}" : ""}'
+            '${until != null ? " until ${formatDate(until)}" : ""}',
     };
   }
 
   String _completionLabelFor(Node node) {
     final c = node.status.completion;
-    if (c == null) return 'background goal (no completion)';
-    return c.kind;
+    return switch (c) {
+      null => 'Background goal (no completion)',
+      OneTimeCompletion(isCompleted: true) => 'One-time (completed)',
+      OneTimeCompletion() => 'One-time',
+      NTimesCompletion() =>
+        '${c.completedCount} of ${c.targetCount} times',
+      PeriodicCompletion() =>
+        'Every ${c.intervalDaysSinceLastCompletion} days',
+    };
   }
 
 }

@@ -40,19 +40,26 @@ class Settings extends Equatable {
 
   Settings copyWith({
     int? defaultDeadlineLeadTimeHours,
+    bool clearDefaultDeadlineLeadTimeHours = false,
     bool? notifyOnPeriodicReopenByDefault,
+    bool clearNotifyOnPeriodicReopenByDefault = false,
     String? rootNodeId,
     int? urgentWindowDays,
+    bool clearUrgentWindowDays = false,
     List<String>? collapsedNodeIds,
   }) {
     return Settings(
-      defaultDeadlineLeadTimeHours:
-          defaultDeadlineLeadTimeHours ?? this.defaultDeadlineLeadTimeHours,
-      notifyOnPeriodicReopenByDefault:
-          notifyOnPeriodicReopenByDefault ??
-              this.notifyOnPeriodicReopenByDefault,
+      defaultDeadlineLeadTimeHours: clearDefaultDeadlineLeadTimeHours
+          ? null
+          : (defaultDeadlineLeadTimeHours ?? this.defaultDeadlineLeadTimeHours),
+      notifyOnPeriodicReopenByDefault: clearNotifyOnPeriodicReopenByDefault
+          ? null
+          : (notifyOnPeriodicReopenByDefault ??
+              this.notifyOnPeriodicReopenByDefault),
       rootNodeId: rootNodeId ?? this.rootNodeId,
-      urgentWindowDays: urgentWindowDays ?? this.urgentWindowDays,
+      urgentWindowDays: clearUrgentWindowDays
+          ? null
+          : (urgentWindowDays ?? this.urgentWindowDays),
       collapsedNodeIds: collapsedNodeIds ?? this.collapsedNodeIds,
     );
   }

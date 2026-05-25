@@ -651,12 +651,18 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Critical').last);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Pick deadline'));
+    final pickDeadline = find.text('Pick deadline');
+    await tester.ensureVisible(pickDeadline);
+    await tester.pumpAndSettle();
+    await tester.tap(pickDeadline);
     await tester.pumpAndSettle();
     await tester.tap(find.text('28'));
     await tester.tap(find.text('OK'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, 'More options…'));
+    final moreOptions = find.widgetWithText(TextButton, 'More options…');
+    await tester.ensureVisible(moreOptions);
+    await tester.pumpAndSettle();
+    await tester.tap(moreOptions);
     await tester.pumpAndSettle();
 
     expect(find.byType(AddNodeView), findsOneWidget);

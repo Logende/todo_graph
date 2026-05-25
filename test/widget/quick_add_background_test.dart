@@ -133,13 +133,20 @@ void main() {
     await tester.tap(find.text('High').last);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Pick deadline'));
+    // Scroll the deadline row into view and pick a date.
+    final pickDeadline = find.text('Pick deadline');
+    await tester.ensureVisible(pickDeadline);
+    await tester.pumpAndSettle();
+    await tester.tap(pickDeadline);
     await tester.pumpAndSettle();
     await tester.tap(find.text('30'));
     await tester.tap(find.text('OK'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Add'));
+    final addButton = find.widgetWithText(FilledButton, 'Add');
+    await tester.ensureVisible(addButton);
+    await tester.pumpAndSettle();
+    await tester.tap(addButton);
     await tester.pumpAndSettle();
 
     final added = controller.graph.nodes.firstWhere(
