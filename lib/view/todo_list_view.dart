@@ -728,12 +728,11 @@ class _NodeTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final subtitle = _subtitleFor(node, now);
-    final scheme = Theme.of(context).colorScheme;
     final screenWidth = MediaQuery.sizeOf(context).width;
-    // Responsive indentation: tighter on narrow screens so deeply nested
-    // items still have room for their title text.
-    final indentPerLevel = screenWidth < kNarrowScreenBreakpoint ? kIndentPerLevelNarrow : kIndentPerLevelWide;
+    final isNarrow = screenWidth < kNarrowScreenBreakpoint;
+    final subtitle = _subtitleFor(node, now, isNarrow: isNarrow);
+    final scheme = Theme.of(context).colorScheme;
+    final indentPerLevel = isNarrow ? kIndentPerLevelNarrow : kIndentPerLevelWide;
     // Cap effective depth so very deep hierarchies don't push the text
     // off-screen.
     final effectiveDepth = depth.clamp(0, kMaxDisplayDepth);
@@ -763,7 +762,7 @@ class _NodeTile extends StatelessWidget {
           children: [
             if (isTreeMode)
               SizedBox(
-                width: 28,
+                width: isNarrow ? 24 : 28,
                 child: isExpandable
                     ? IconButton(
                         tooltip: isCollapsed
@@ -773,56 +772,59 @@ class _NodeTile extends StatelessWidget {
                           isCollapsed
                               ? Icons.chevron_right
                               : Icons.expand_more,
+                          size: isNarrow ? kCompactIconSize : kDefaultIconSize,
                         ),
                         visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
                         onPressed: onToggleCollapsed,
                       )
                     : const SizedBox.shrink(),
               ),
-            ReorderableDragStartListener(
-              index: index,
-              child: Tooltip(
-                message: 'Drag to reorder among siblings',
-                child: Icon(
-                  Icons.drag_indicator,
-                  color: Theme.of(context).colorScheme.outline,
+            if (!isNarrow)
+              ReorderableDragStartListener(
+                index: index,
+                child: Tooltip(
+                  message: 'Drag to reorder among siblings',
+                  child: Icon(
+                    Icons.drag_indicator,
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 4),
-            _leadingFor(context),
+            if (!isNarrow) const SizedBox(width: 4),
+            _leadingFor(context, isNarrow: isNarrow),
           ],
         ),
         title: Text(
           node.title,
-          maxLines: screenWidth < kNarrowScreenBreakpoint ? 2 : null,
-          overflow: screenWidth < kNarrowScreenBreakpoint ? TextOverflow.ellipsis : null,
+          maxLines: isNarrow ? 2 : null,
+          overflow: isNarrow ? TextOverflow.ellipsis : null,
         ),
         subtitle: subtitle == null
             ? null
             : Text(
                 subtitle,
-                maxLines: screenWidth < kNarrowScreenBreakpoint ? 1 : 2,
+                maxLines: isNarrow ? 1 : 2,
                 overflow: TextOverflow.ellipsis,
               ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Hide the status badge on narrow screens to save space.
-            if (screenWidth >= kNarrowScreenBreakpoint) _statusBadge(node.status),
-            if (isTreeMode && currentParentId != null)
+            if (!isNarrow) _statusBadge(node.status),
+            if (isTreeMode && currentParentId != null && !isNarrow)
               IconButton(
                 tooltip: 'Move to another parent',
                 icon: const Icon(Icons.drive_file_move_outline),
                 visualDensity: VisualDensity.compact,
-                iconSize: screenWidth < kNarrowScreenBreakpoint ? kCompactIconSize : kDefaultIconSize,
+                iconSize: isNarrow ? kCompactIconSize : kDefaultIconSize,
                 onPressed: () => onMoveToParent(currentParentId),
               ),
             IconButton(
               tooltip: 'Add child',
               icon: const Icon(Icons.add),
               visualDensity: VisualDensity.compact,
-              iconSize: screenWidth < kNarrowScreenBreakpoint ? kCompactIconSize : kDefaultIconSize,
+              iconSize: isNarrow ? kCompactIconSize : kDefaultIconSize,
               onPressed: onQuickAddChild,
             ),
           ],
@@ -838,10 +840,12 @@ class _NodeTile extends StatelessWidget {
   ///
   /// Nodes with completion but still-open mandatory children also can't be
   /// ticked yet — they get a lock icon until their prerequisites close.
-  Widget _leadingFor(BuildContext context) {
+  Widget _leadingFor(BuildContext context, {required bool isNarrow}) {
+    final iconSize = isNarrow ? kCompactIconSize : kDefaultIconSize;
     if (node.status.completion == null) {
       return Icon(
         Icons.flag_outlined,
+        size: iconSize,
         color: Theme.of(context).colorScheme.primary,
       );
     }
@@ -853,6 +857,7 @@ class _NodeTile extends StatelessWidget {
         message: 'Not active yet',
         child: Icon(
           Icons.schedule_outlined,
+          size: iconSize,
           color: Theme.of(context).colorScheme.outline,
         ),
       );
@@ -864,11 +869,13 @@ class _NodeTile extends StatelessWidget {
         message: 'Mandatory child tasks still open',
         child: Icon(
           Icons.lock_outline,
+          size: iconSize,
           color: Theme.of(context).colorScheme.outline,
         ),
       );
     }
     return Checkbox(
+      visualDensity: isNarrow ? VisualDensity.compact : VisualDensity.standard,
       value: !node.status.isOngoingAt(now),
       onChanged: (value) {
         if (value != null) onSetCompleted(value);
@@ -876,7 +883,7 @@ class _NodeTile extends StatelessWidget {
     );
   }
 
-  String? _subtitleFor(Node node, DateTime now) {
+  String? _subtitleFor(Node node, DateTime now, {required bool isNarrow}) {
     final parts = <String>[];
     if (node.description != null && node.description!.isNotEmpty) {
       parts.add(node.description!);
@@ -885,7 +892,8 @@ class _NodeTile extends StatelessWidget {
     if (node.deadline != null) {
       parts.add('Due ${formatDate(node.deadline!)}');
     } else if (inheritedDeadline != null) {
-      parts.add('Due ${formatDate(inheritedDeadline)} (inherited)');
+      final suffix = isNarrow ? '' : ' (inherited)';
+      parts.add('Due ${formatDate(inheritedDeadline)}$suffix');
     }
     final c = node.status.completion;
     if (c is NTimesCompletion) {
@@ -893,13 +901,15 @@ class _NodeTile extends StatelessWidget {
     } else if (c is PeriodicCompletion) {
       parts.add('Every ${c.intervalDaysSinceLastCompletion}d');
     }
-    final a = node.status.activation;
-    if (a is BoundedActive) {
-      final fromLabel =
-          a.activeFrom != null ? formatDate(a.activeFrom!) : '…';
-      final untilLabel =
-          a.activeUntil != null ? formatDate(a.activeUntil!) : '…';
-      parts.add('Active $fromLabel – $untilLabel');
+    if (!isNarrow) {
+      final a = node.status.activation;
+      if (a is BoundedActive) {
+        final fromLabel =
+            a.activeFrom != null ? formatDate(a.activeFrom!) : '…';
+        final untilLabel =
+            a.activeUntil != null ? formatDate(a.activeUntil!) : '…';
+        parts.add('Active $fromLabel – $untilLabel');
+      }
     }
     return parts.isEmpty ? null : parts.join(' • ');
   }
