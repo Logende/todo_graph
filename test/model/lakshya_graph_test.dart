@@ -73,10 +73,18 @@ void main() {
             title: 'Work',
             iconName: 'work',
             ordering: 0,
+            viewSettings: ExplorerViewSettings(
+              displayMode: ExplorerDisplayMode.graph,
+              graphFlow: ExplorerGraphFlow.rootToLeaves,
+              centerGraphParents: false,
+            ),
             filter: Filter(
               ancestorGoalIds: ['n-1'],
               contribution: FilterContribution.mandatory,
-              completionKinds: [CompletionKindFilter.periodic, CompletionKindFilter.oneTime],
+              completionKinds: [
+                CompletionKindFilter.periodic,
+                CompletionKindFilter.oneTime,
+              ],
               activationKinds: [ActivationKindFilter.alwaysActive],
               onlyOngoing: true,
               onlyLeaves: true,
@@ -90,6 +98,16 @@ void main() {
           rootNodeId: 'n-1',
           urgentWindowDays: 5,
           collapsedNodeIds: ['n-1'],
+          tileViewSettings: {
+            'tile:all': ExplorerViewSettings(
+              displayMode: ExplorerDisplayMode.graph,
+            ),
+            'tile:goal:n-1': ExplorerViewSettings(
+              displayMode: ExplorerDisplayMode.graph,
+              graphFlow: ExplorerGraphFlow.rootToLeaves,
+              centerGraphParents: false,
+            ),
+          },
         ),
       );
 

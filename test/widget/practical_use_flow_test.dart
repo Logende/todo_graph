@@ -65,7 +65,7 @@ void main() {
 
     expect(find.text('Write abstract'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Filter & save'));
+    await tester.tap(find.byTooltip('Filter'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Save as tile'));
     await tester.pumpAndSettle();

@@ -4,29 +4,28 @@ import '../app/cloud_sync_coordinator.dart';
 import '../app/graph_controller.dart';
 import '../app/web_file_sync_coordinator.dart';
 import '../model/filter.dart';
+import '../model/filter_preset.dart';
 import '../model/node.dart';
 import '../repository/graph_repository.dart';
 import '../service/cloud_sync_registry.dart';
 import '../service/filter_evaluator.dart';
 import '../theme/layout.dart';
 import 'add_node_view.dart';
-import 'graph_canvas_view.dart';
+import 'hybrid_hierarchy_view.dart';
 import 'settings_view.dart';
-import 'todo_list_view.dart';
 
 /// View 3 from the spec: the "Kachel" launcher. A grid of large tiles, each
-/// representing a saved filter, the graph view, or a top-level life area.
-/// Tapping a list-style tile opens [TodoListView] pre-filtered; the graph
-/// tile opens [GraphCanvasView].
+/// representing the shared task explorer, a saved tile, or a top-level life
+/// area.
+/// Tapping a tile opens [HybridHierarchyView], the shared task explorer,
+/// pre-filtered and pre-configured by the tile.
 ///
 /// Tile sources:
-/// * Two built-in tiles: "All ongoing" and "All goals".
-/// * One built-in tile for the graph view.
+/// * One built-in tile: "All".
 /// * One auto-tile per direct child of the root goal (so "Health", "Work",
 ///   "Leisure", etc. all get a dedicated tile without the user having to
 ///   save a preset for them).
-/// * Any [FilterPreset] the user has saved (via the "Save as tile" button on
-///   the todo list).
+/// * Any [FilterPreset] the user has saved.
 class DashboardView extends StatelessWidget {
   const DashboardView({
     super.key,
@@ -48,6 +47,11 @@ class DashboardView extends StatelessWidget {
     icon: Icons.account_tree_outlined,
     filter: Filter(),
   );
+
+  /// Stable, collision-free persistence keys for the non-preset tiles whose
+  /// view settings (graph vs list, etc.) are remembered between sessions.
+  static const _allTileKey = 'tile:all';
+  static String _goalTileKey(String nodeId) => 'tile:goal:$nodeId';
 
   @override
   Widget build(BuildContext context) {
@@ -103,7 +107,9 @@ class DashboardView extends StatelessWidget {
           return Padding(
             padding: const EdgeInsets.all(kTileGridPadding),
             child: GridView.count(
-              crossAxisCount: _columnsForWidth(MediaQuery.sizeOf(context).width),
+              crossAxisCount: _columnsForWidth(
+                MediaQuery.sizeOf(context).width,
+              ),
               mainAxisSpacing: kTileGridSpacing,
               crossAxisSpacing: kTileGridSpacing,
               childAspectRatio: kTileAspectRatio,
@@ -112,16 +118,13 @@ class DashboardView extends StatelessWidget {
                   title: _builtInTile.title,
                   icon: _builtInTile.icon,
                   badge: _actionableCount(_builtInTile.filter, now),
-                  onTap: () => _openList(
+                  onTap: () => _openExplorer(
                     context,
-                    _builtInTile.title,
-                    _builtInTile.filter,
+                    title: _builtInTile.title,
+                    filter: _builtInTile.filter,
+                    viewSettings: _storedViewSettings(_allTileKey),
+                    persistKey: _allTileKey,
                   ),
-                ),
-                _Tile(
-                  title: 'Graph',
-                  icon: Icons.hub_outlined,
-                  onTap: () => _openGraph(context),
                 ),
                 for (final child in rootChildren)
                   _Tile(
@@ -131,10 +134,12 @@ class DashboardView extends StatelessWidget {
                       Filter(ancestorGoalIds: [child.id]),
                       now,
                     ),
-                    onTap: () => _openList(
+                    onTap: () => _openExplorer(
                       context,
-                      child.title,
-                      Filter(ancestorGoalIds: [child.id]),
+                      title: child.title,
+                      filter: Filter(ancestorGoalIds: [child.id]),
+                      viewSettings: _storedViewSettings(_goalTileKey(child.id)),
+                      persistKey: _goalTileKey(child.id),
                     ),
                   ),
                 for (final preset in presets)
@@ -142,8 +147,12 @@ class DashboardView extends StatelessWidget {
                     title: preset.title,
                     icon: Icons.filter_alt_outlined,
                     badge: _actionableCount(preset.filter, now),
-                    onTap: () =>
-                        _openList(context, preset.title, preset.filter),
+                    onTap: () => _openExplorer(
+                      context,
+                      title: preset.title,
+                      filter: preset.filter,
+                      viewSettings: preset.viewSettings,
+                    ),
                   ),
               ],
             ),
@@ -153,30 +162,40 @@ class DashboardView extends StatelessWidget {
     );
   }
 
-  void _openList(BuildContext context, String title, Filter filter) {
-    Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => TodoListView(
-        controller: controller,
-        title: title,
-        filter: filter,
-      ),
-    ));
-  }
+  /// View settings stored for a non-preset tile, defaulting to a plain
+  /// [ExplorerViewSettings] when nothing has been persisted yet.
+  ExplorerViewSettings _storedViewSettings(String tileKey) =>
+      controller.graph.settings?.tileViewSettings[tileKey] ??
+      const ExplorerViewSettings();
 
-  void _openGraph(BuildContext context) {
-    Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => GraphCanvasView(controller: controller),
-    ));
+  void _openExplorer(
+    BuildContext context, {
+    required String title,
+    required Filter filter,
+    required ExplorerViewSettings viewSettings,
+    String? persistKey,
+  }) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => HybridHierarchyView(
+          controller: controller,
+          title: title,
+          filter: filter,
+          viewSettings: viewSettings,
+          onViewSettingsChanged: persistKey == null
+              ? null
+              : (next) => controller.setTileViewSettings(persistKey, next),
+        ),
+      ),
+    );
   }
 
   int _actionableCount(Filter baseFilter, DateTime now) {
-    final actionable = baseFilter.copyWith(
-      onlyOngoing: true,
-      onlyLeaves: true,
-    );
-    return FilterEvaluator(graph: controller.graph, now: now)
-        .apply(actionable)
-        .length;
+    final actionable = baseFilter.copyWith(onlyOngoing: true, onlyLeaves: true);
+    return FilterEvaluator(
+      graph: controller.graph,
+      now: now,
+    ).apply(actionable).length;
   }
 
   static int _columnsForWidth(double width) {
@@ -265,9 +284,7 @@ class _TileState extends State<_Tile> {
               colors: [
                 scheme.surfaceContainerHigh,
                 Color.alphaBlend(
-                  scheme.primary.withValues(
-                    alpha: _hovered ? 0.10 : 0.04,
-                  ),
+                  scheme.primary.withValues(alpha: _hovered ? 0.10 : 0.04),
                   scheme.surfaceContainerHigh,
                 ),
               ],
@@ -275,9 +292,7 @@ class _TileState extends State<_Tile> {
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: scheme.shadow.withValues(
-                  alpha: _hovered ? 0.18 : 0.08,
-                ),
+                color: scheme.shadow.withValues(alpha: _hovered ? 0.18 : 0.08),
                 blurRadius: _hovered ? 16 : 8,
                 offset: const Offset(0, 4),
               ),
@@ -311,9 +326,7 @@ class _TileState extends State<_Tile> {
                             ),
                             child: Text(
                               '${widget.badge}',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .labelSmall
+                              style: Theme.of(context).textTheme.labelSmall
                                   ?.copyWith(
                                     color: scheme.onPrimary,
                                     fontWeight: FontWeight.bold,
@@ -326,10 +339,9 @@ class _TileState extends State<_Tile> {
                     const SizedBox(height: 12),
                     Text(
                       widget.title,
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w600),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),

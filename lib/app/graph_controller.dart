@@ -29,9 +29,9 @@ class GraphController extends ChangeNotifier {
     required this.idGenerator,
     required this.clock,
     this.mutator = const GraphMutator(),
-  })  : _graph = initial,
-        // ignore: prefer_initializing_formals
-        _save = save;
+  }) : _graph = initial,
+       // ignore: prefer_initializing_formals
+       _save = save;
 
   Future<void> Function(LakshyaGraph graph) _save;
 
@@ -174,9 +174,9 @@ class GraphController extends ChangeNotifier {
     return graph.relationships
         .where((r) => r.kind == RelationshipKind.alternativeTo)
         .expand((r) sync* {
-      if (r.fromNodeId == nodeId) yield r.toNodeId;
-      if (r.toNodeId == nodeId) yield r.fromNodeId;
-    });
+          if (r.fromNodeId == nodeId) yield r.toNodeId;
+          if (r.toNodeId == nodeId) yield r.fromNodeId;
+        });
   }
 
   /// Adds an extra parent for an existing node.
@@ -250,9 +250,7 @@ class GraphController extends ChangeNotifier {
 
   /// Removes a relationship by id.
   void removeRelationship(String relationshipId) {
-    _updateAndPersist(
-      mutator.removeRelationship(_graph, relationshipId),
-    );
+    _updateAndPersist(mutator.removeRelationship(_graph, relationshipId));
   }
 
   /// Records that [higherId] ranks above [lowerId] in the default ordering.
@@ -279,12 +277,12 @@ class GraphController extends ChangeNotifier {
       }
       final opposingMoreImportant =
           r.kind == RelationshipKind.moreImportantThan &&
-              r.fromNodeId == lowerId &&
-              r.toNodeId == higherId;
+          r.fromNodeId == lowerId &&
+          r.toNodeId == higherId;
       final opposingLessImportant =
           r.kind == RelationshipKind.lessImportantThan &&
-              ((r.fromNodeId == higherId && r.toNodeId == lowerId) ||
-                  (r.fromNodeId == lowerId && r.toNodeId == higherId));
+          ((r.fromNodeId == higherId && r.toNodeId == lowerId) ||
+              (r.fromNodeId == lowerId && r.toNodeId == higherId));
       if (opposingMoreImportant || opposingLessImportant) {
         conflicts.add(r);
       }
@@ -329,6 +327,24 @@ class GraphController extends ChangeNotifier {
   void setCollapsedNodeIds(List<String> nodeIds) {
     final current = _graph.settings ?? const Settings();
     updateSettings(current.copyWith(collapsedNodeIds: nodeIds));
+  }
+
+  /// Persists the view settings (display mode, graph flow, parent placement)
+  /// for a dashboard tile keyed by [tileKey]. Used by the built-in "All" tile
+  /// and the auto-generated top-level goal tiles, which are not saved presets.
+  ///
+  /// An entry equal to the default [ExplorerViewSettings] is dropped rather
+  /// than stored, keeping the persisted map free of redundant defaults.
+  void setTileViewSettings(String tileKey, ExplorerViewSettings settings) {
+    final current = _graph.settings ?? const Settings();
+    final next = {...current.tileViewSettings};
+    if (settings == const ExplorerViewSettings()) {
+      next.remove(tileKey);
+    } else {
+      next[tileKey] = settings;
+    }
+    if (mapEquals(next, current.tileViewSettings)) return;
+    updateSettings(current.copyWith(tileViewSettings: next));
   }
 
   /// Broadcasts every error thrown by the [save] callback. The UI listens

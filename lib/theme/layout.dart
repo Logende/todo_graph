@@ -76,6 +76,19 @@ const double kGraphNodeMaxWidth = 240;
 const double kGraphNodeMinHeight = 56;
 
 // ---------------------------------------------------------------------------
+// Hybrid hierarchy view
+// ---------------------------------------------------------------------------
+
+const double kHybridColumnWidth = 300;
+const double kHybridColumnGap = 112;
+const double kHybridNodeHeight = 78;
+const double kHybridNodeGap = 12;
+const double kHybridCanvasPadding = 48;
+const double kHybridMinScale = 0.35;
+const double kHybridMaxScale = 2.2;
+const double kHybridReadableFocusScale = 0.72;
+
+// ---------------------------------------------------------------------------
 // Icon sizes
 // ---------------------------------------------------------------------------
 
