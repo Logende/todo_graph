@@ -843,34 +843,43 @@ class _NodeTile extends StatelessWidget {
   Widget _leadingFor(BuildContext context, {required bool isNarrow}) {
     final iconSize = isNarrow ? kCompactIconSize : kDefaultIconSize;
     if (node.status.completion == null) {
-      return Icon(
-        Icons.flag_outlined,
-        size: iconSize,
-        color: Theme.of(context).colorScheme.primary,
+      return GestureDetector(
+        onTap: () {},
+        child: Icon(
+          Icons.flag_outlined,
+          size: iconSize,
+          color: Theme.of(context).colorScheme.primary,
+        ),
       );
     }
     final activation = node.status.activation;
     if (activation is BoundedActive &&
         activation.activeFrom != null &&
         now.isBefore(activation.activeFrom!)) {
-      return Tooltip(
-        message: 'Not active yet',
-        child: Icon(
-          Icons.schedule_outlined,
-          size: iconSize,
-          color: Theme.of(context).colorScheme.outline,
+      return GestureDetector(
+        onTap: () {},
+        child: Tooltip(
+          message: 'Not active yet',
+          child: Icon(
+            Icons.schedule_outlined,
+            size: iconSize,
+            color: Theme.of(context).colorScheme.outline,
+          ),
         ),
       );
     }
     final blockedByChildren =
         queries.openMandatoryChildrenOf(node.id, now).isNotEmpty;
     if (blockedByChildren) {
-      return Tooltip(
-        message: 'Mandatory child tasks still open',
-        child: Icon(
-          Icons.lock_outline,
-          size: iconSize,
-          color: Theme.of(context).colorScheme.outline,
+      return GestureDetector(
+        onTap: () {},
+        child: Tooltip(
+          message: 'Mandatory child tasks still open',
+          child: Icon(
+            Icons.lock_outline,
+            size: iconSize,
+            color: Theme.of(context).colorScheme.outline,
+          ),
         ),
       );
     }
