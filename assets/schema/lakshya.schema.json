@@ -234,7 +234,26 @@
           "type": "integer",
           "description": "Sort order of tiles in the dashboard."
         },
-        "filter": { "$ref": "#/$defs/Filter" }
+        "filter": { "$ref": "#/$defs/Filter" },
+        "viewSettings": { "$ref": "#/$defs/ExplorerViewSettings" }
+      }
+    },
+    "ExplorerViewSettings": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "View settings saved with a dashboard tile.",
+      "properties": {
+        "displayMode": {
+          "type": "string",
+          "enum": ["tree_list", "graph"]
+        },
+        "graphFlow": {
+          "type": "string",
+          "enum": ["leaves_to_root", "root_to_leaves"]
+        },
+        "centerGraphParents": {
+          "type": "boolean"
+        }
       }
     },
     "Filter": {
@@ -316,6 +335,11 @@
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "description": "Node ids whose children are collapsed in the hierarchical todo list view. Ignored by leaf-only views."
+        },
+        "tileViewSettings": {
+          "type": "object",
+          "description": "Per-dashboard-tile view settings (display mode, graph flow, parent placement) for the built-in 'All' tile and the auto-generated top-level goal tiles, keyed by a stable tile id. Saved presets store their own view settings inline instead.",
+          "additionalProperties": { "$ref": "#/$defs/ExplorerViewSettings" }
         }
       }
     }
